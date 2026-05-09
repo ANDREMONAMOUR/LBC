@@ -1,0 +1,26 @@
+[
+  {
+    "content": "Review reference screenshots to align visual design",
+    "status": "completed"
+  },
+  {
+    "content": "Set up Tailwind config + fonts (Nunito/Inter) + lucide-react",
+    "status": "completed"
+  },
+  {
+    "content": "Build single-file App.js with all views (Header, Landing, Auth OTP, Dashboard 4 tabs, Lumi Chatbot)",
+    "status": "completed"
+  },
+  {
+    "content": "Implement Booking Wizard (3 steps), Devis sidebar with SAP calc, Suivi, Factures",
+    "status": "completed"
+  },
+  {
+    "content": "Add A+ accessibility zoom, smooth animations, accessibility for seniors",
+    "status": "completed"
+  },
+  {
+    "content": "Test app end-to-end (Playwright walkthrough: landing → auth → profile → booking → suivi → factures → Lumi)",
+    "status": "completed"
+  }
+]
