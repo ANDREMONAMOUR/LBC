@@ -24,11 +24,11 @@
     "status": "completed"
   },
   {
-    "content": "P1 - Tests E2E via testing_agent_v3",
-    "status": "in_progress"
+    "content": "P1 - Tests E2E via testing_agent_v3 (25/25 backend OK)",
+    "status": "completed"
   },
   {
-    "content": "P2 - Corrections bugs remontés par tests",
-    "status": "pending"
+    "content": "P2 - Corrections bugs remontés par tests (bug /contact auth corrigé par testing agent)",
+    "status": "completed"
   }
 ]
