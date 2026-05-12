@@ -32,7 +32,7 @@
     "status": "completed"
   },
   {
-    "content": "Tests E2E via testing_agent_v3 sur l'intégration Stripe",
-    "status": "in_progress"
+    "content": "Tests E2E via testing_agent_v3 sur l'intégration Stripe (42/42 OK)",
+    "status": "completed"
   }
 ]
