@@ -1,0 +1,22 @@
+{
+  "short_name": "Le Bon Clic",
+  "name": "Le Bon Clic — L'expertise informatique à domicile",
+  "description": "Dépannage informatique à domicile sur Lyon. 50% de crédit d'impôt Service à la Personne.",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%231E293B'/><path d='M96 36c-22 0-40 18-40 40 0 14 7 27 19 34v18c0 6 5 11 11 11h20c6 0 11-5 11-11v-18c12-7 19-20 19-34 0-22-18-40-40-40z' fill='%238B5CF6'/><circle cx='130' cy='62' r='8' fill='%2306B6D4'/></svg>",
+      "type": "image/svg+xml",
+      "sizes": "192x192"
+    },
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%231E293B'/><path d='M256 100c-58 0-105 47-105 105 0 37 19 70 49 89v48c0 16 13 29 29 29h54c16 0 29-13 29-29v-48c30-19 49-52 49-89 0-58-47-105-105-105z' fill='%238B5CF6'/><circle cx='345' cy='160' r='22' fill='%2306B6D4'/></svg>",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1E293B",
+  "background_color": "#F8FAFC",
+  "lang": "fr-FR"
+}

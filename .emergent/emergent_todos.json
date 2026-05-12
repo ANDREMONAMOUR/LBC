@@ -1,22 +1,22 @@
 [
   {
-    "content": "Add Brevo + JWT secrets to backend/.env; install deps (httpx, reportlab, pyjwt, motor)",
-    "status": "completed"
+    "content": "Update App.css with high-contrast mode, larger sizes, skip-link, react-day-picker theme, cookie banner styles",
+    "status": "in_progress"
   },
   {
-    "content": "Build backend: models (User, OTP, Booking, Invoice), Brevo SMS service, JWT, PDF generator",
-    "status": "completed"
+    "content": "Add PWA manifest + theme-color meta to index.html",
+    "status": "pending"
   },
   {
-    "content": "Build backend routes: /api/auth/send-otp, verify-otp, /api/me, /api/bookings, /api/invoices, /api/invoices/{id}/pdf",
-    "status": "completed"
+    "content": "Rewrite App.js with all 22 frontend improvements (Jordan card, HowItWorks, ServiceMap, Pricing, DayPicker, AM/PM, address autocomplete, dialogs, tooltips, contrast mode, etc.)",
+    "status": "pending"
   },
   {
-    "content": "Refactor frontend App.js to call backend (axios) instead of localStorage; keep 1234 bypass via backend env flag",
-    "status": "completed"
+    "content": "Backend: add Brevo Email confirmation + APScheduler J-1 SMS reminder",
+    "status": "pending"
   },
   {
-    "content": "Test end-to-end: send real SMS, verify, create booking, generate & download PDF invoice",
-    "status": "completed"
+    "content": "Test end-to-end with browser automation",
+    "status": "pending"
   }
 ]

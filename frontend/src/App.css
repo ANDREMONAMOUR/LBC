@@ -1,10 +1,12 @@
-/* App.css — minimal, most styling done via Tailwind utilities */
+/* App.css — Le Bon Clic */
+
 .app-shell {
   min-height: 100vh;
-  background-color: #F8FAFC;
+  background-color: var(--lbc-bg, #F8FAFC);
+  color: var(--lbc-fg, #1E293B);
 }
 
-/* Step indicator dots */
+/* Step indicator dots (kept for legacy use) */
 .step-dot {
   width: 10px;
   height: 10px;
@@ -12,13 +14,8 @@
   background: #CBD5E1;
   transition: background 0.25s ease, transform 0.25s ease;
 }
-.step-dot.active {
-  background: #06B6D4;
-  transform: scale(1.25);
-}
-.step-dot.done {
-  background: #8B5CF6;
-}
+.step-dot.active { background: #06B6D4; transform: scale(1.25); }
+.step-dot.done   { background: #8B5CF6; }
 
 /* Time-window chip selected state */
 .chip-selected {
@@ -26,3 +23,123 @@
   border-color: #8B5CF6 !important;
   color: #1E293B;
 }
+
+/* ---------- Skip link for screen readers ---------- */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: #1E293B;
+  color: white;
+  padding: 12px 18px;
+  border-radius: 0 0 12px 0;
+  font-weight: 800;
+}
+.skip-link:focus {
+  left: 0;
+  outline: 3px solid #06B6D4;
+}
+
+/* ---------- Cookie banner slide-up ---------- */
+@keyframes cookie-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.cookie-banner { animation: cookie-slide-up 0.5s ease-out; }
+
+/* ---------- Help tooltip ---------- */
+.lbc-help { position: relative; display: inline-flex; }
+.lbc-help-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1E293B;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 12px;
+  border-radius: 10px;
+  width: max-content;
+  max-width: 260px;
+  line-height: 1.4;
+  box-shadow: 0 10px 28px -8px rgba(15,23,42,0.4);
+  pointer-events: none;
+}
+.lbc-help-pop::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 12px; height: 12px;
+  background: #1E293B;
+}
+
+/* ---------- react-day-picker custom theme ---------- */
+.rdp { --rdp-cell-size: 42px; --rdp-accent-color: #06B6D4; --rdp-background-color: #CFFAFE; font-family: inherit; margin: 0; }
+.rdp-caption_label { font-weight: 800; color: #1E293B; font-size: 1.05rem; text-transform: capitalize; }
+.rdp-head_cell { color: #64748B; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
+.rdp-day { font-weight: 600; color: #1E293B; border-radius: 10px !important; transition: all 0.15s ease; }
+.rdp-day:hover:not([disabled]) { background: #F1F5F9; color: #06B6D4; }
+.rdp-day_selected, .rdp-day_selected:focus-visible, .rdp-day_selected:hover {
+  background: linear-gradient(135deg, #06B6D4, #8B5CF6) !important;
+  color: white !important;
+  font-weight: 800;
+}
+.rdp-day_today:not(.rdp-day_selected) { color: #06B6D4; font-weight: 800; outline: 2px solid #CFFAFE; outline-offset: -2px; }
+.rdp-day_disabled { color: #CBD5E1; opacity: 0.5; }
+.rdp-nav_button { color: #1E293B; }
+.rdp-nav_button:hover { background: #F1F5F9; }
+
+/* ---------- High-contrast mode ---------- */
+body.lbc-high-contrast {
+  --lbc-bg: #000000;
+  --lbc-fg: #FFFFFF;
+  background-color: #000 !important;
+  color: #FFF !important;
+}
+body.lbc-high-contrast .app-shell { background: #000 !important; color: #FFF !important; }
+body.lbc-high-contrast .bg-white,
+body.lbc-high-contrast .bg-ink-50,
+body.lbc-high-contrast .bg-ink-100 { background-color: #000 !important; color: #FFF !important; border-color: #FBBF24 !important; }
+body.lbc-high-contrast .text-ink-900,
+body.lbc-high-contrast .text-ink-800,
+body.lbc-high-contrast .text-ink-700,
+body.lbc-high-contrast .text-ink-600,
+body.lbc-high-contrast .text-ink-500,
+body.lbc-high-contrast .text-ink-400 { color: #FFF !important; }
+body.lbc-high-contrast .bg-ink-800,
+body.lbc-high-contrast .bg-ink-900 { background-color: #0B0B0B !important; }
+body.lbc-high-contrast button,
+body.lbc-high-contrast a,
+body.lbc-high-contrast input,
+body.lbc-high-contrast textarea,
+body.lbc-high-contrast select { border-color: #FBBF24 !important; }
+body.lbc-high-contrast .text-gradient-brand {
+  background: linear-gradient(90deg, #FBBF24, #FBBF24) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+}
+body.lbc-high-contrast .border-ink-200,
+body.lbc-high-contrast .border-ink-300 { border-color: #FBBF24 !important; }
+
+/* ---------- Skeleton loaders ---------- */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s linear infinite;
+  border-radius: 12px;
+}
+
+/* ---------- Sticky mobile call bar safe area ---------- */
+.sticky-call-bar { padding-bottom: env(safe-area-inset-bottom); }
+
+/* index.css additions kept separate (font import, scrollbars, focus) */
