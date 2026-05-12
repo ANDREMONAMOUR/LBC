@@ -35,7 +35,9 @@ COMPANY_ADDRESS = os.environ.get("COMPANY_ADDRESS", "43 Rue Molière, 69006 Lyon
 COMPANY_SIRET = os.environ.get("COMPANY_SIRET", "")
 COMPANY_SAP_AGREMENT = os.environ.get("COMPANY_SAP_AGREMENT", "")
 
-# Stripe Checkout
+# Stripe Checkout (Stripe official SDK)
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 # Fixed deposit amount when a customer wants to secure their booking (EUR)
 BOOKING_DEPOSIT_EUR = float(os.environ.get("BOOKING_DEPOSIT_EUR", "10.0"))

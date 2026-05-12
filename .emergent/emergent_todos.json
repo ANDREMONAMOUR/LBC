@@ -1,38 +1,26 @@
 [
   {
-    "content": "Setup Stripe: ajouter STRIPE_API_KEY au .env + config.py",
+    "content": "Installer SDK stripe officiel + ajouter clés dans .env",
     "status": "completed"
   },
   {
-    "content": "Backend: créer module payments.py (création sessions + status + webhook)",
+    "content": "Mettre à jour config.py avec les 3 clés Stripe",
     "status": "completed"
   },
   {
-    "content": "Backend: ajouter modèles PaymentTransaction + flags Invoice/Booking",
+    "content": "Réécrire payments.py avec SDK stripe officiel (sessions + status + webhook signature)",
     "status": "completed"
   },
   {
-    "content": "Backend: brancher 4 endpoints (/api/payments/checkout/invoice, deposit, status, webhook)",
+    "content": "Tester via curl : création session + récupération status (cette fois SANS fallback)",
     "status": "completed"
   },
   {
-    "content": "Backend: email Brevo de confirmation de paiement",
+    "content": "Validation visuelle redirection Stripe avec votre compte",
     "status": "completed"
   },
   {
-    "content": "Frontend: bouton 'Payer en ligne' sur factures impayées + redirect",
-    "status": "completed"
-  },
-  {
-    "content": "Frontend: bouton 'Verser acompte 10€' après création booking + redirect",
-    "status": "completed"
-  },
-  {
-    "content": "Frontend: gestion retour Stripe (polling status + toast)",
-    "status": "completed"
-  },
-  {
-    "content": "Tests E2E via testing_agent_v3 sur l'intégration Stripe (42/42 OK)",
-    "status": "completed"
+    "content": "Re-tester via testing_agent_v3",
+    "status": "in_progress"
   }
 ]

@@ -1,0 +1,113 @@
+{
+  "summary": "✅ Stripe SDK migration verification complete - Official stripe SDK (v15.1.0) successfully integrated and tested. All payment endpoints working correctly with real Stripe API (api.stripe.com). Comprehensive backend testing completed with 100% success rate for Stripe-specific tests.",
+  
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": [],
+    "warnings": [
+      {
+        "component": "requirements.txt",
+        "issue": "emergentintegrations==0.1.0 still present but not used",
+        "impact": "No functional impact - just cleanup needed",
+        "fix_priority": "LOW",
+        "recommendation": "Remove emergentintegrations from requirements.txt as it's no longer used"
+      }
+    ]
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "passed_tests": [
+    "✅ Official Stripe SDK (stripe==15.1.0) is imported and used (NOT emergentintegrations)",
+    "✅ POST /api/payments/checkout/invoice/{id} creates real Stripe session (cs_test_...)",
+    "✅ Session URLs point to checkout.stripe.com (not emergentintegrations proxy)",
+    "✅ API calls go to api.stripe.com (verified in backend logs)",
+    "✅ Session uses line_items with price_data (currency=eur, unit_amount in cents)",
+    "✅ Invoice amount calculation: net_total * 100 cents (40.0 EUR = 4000 cents)",
+    "✅ Deposit amount: 10.0 EUR = 1000 cents (from config.BOOKING_DEPOSIT_EUR)",
+    "✅ Session includes locale='fr' (verified in code)",
+    "✅ POST /api/payments/checkout/deposit/{booking_id} creates 10€ session",
+    "✅ GET /api/payments/status/{session_id} uses stripe.checkout.Session.retrieve()",
+    "✅ Status endpoint returns source='stripe', complete metadata (kind, invoice_id/booking_id, user_id)",
+    "✅ Status endpoint returns amount_total in cents, currency='eur'",
+    "✅ GET /api/payments/status/{unknown_id} returns 404",
+    "✅ POST /api/webhook/stripe with invalid signature returns 400 'Webhook invalide.'",
+    "✅ POST /api/webhook/stripe with random body returns 400",
+    "✅ Webhook uses stripe.Webhook.construct_event() with STRIPE_WEBHOOK_SECRET",
+    "✅ Security: CheckoutInitBody only accepts origin_url (no client-side amounts)",
+    "✅ Invoice amount always from server (invoice.net_total)",
+    "✅ Deposit amount always from config (BOOKING_DEPOSIT_EUR=10.0)",
+    "✅ payment_transactions collection: creates entry with status='initiated', payment_status='unpaid', currency='eur', correct metadata",
+    "✅ Idempotence: _fulfil_paid_session doesn't mark paid twice (verified in code)",
+    "✅ Multiple checkout sessions for same unpaid invoice allowed (tested successfully)",
+    "✅ Regression: All existing endpoints working (auth, /api/me, bookings CRUD, reschedule, cancel, invoices, PDF, contact, admin/run-reminders-j1)",
+    "✅ APScheduler started at startup (verified in logs: 'Scheduler started (reminder_j1 cron 18:00 Europe/Paris)')",
+    "✅ Brevo emails sent on booking creation/modification/cancellation and invoice seeding (HTTP 201 in logs)",
+    "✅ STRIPE_API_KEY configured: sk_test_51TWKiB2Mk0zRQuc6SgukeFOhOWGydCrhHJ77EQ7nIC9UOBVnuReGwkAj5VcOE3gRfervpQM0ui1aU9OF62EMVKsj00CST95PUJ",
+    "✅ STRIPE_WEBHOOK_SECRET configured: whsec_ge8bN9BbHHNBZJuAmcxbeGMmUHFcXt0C",
+    "✅ OTP bypass code '1234' working for all French numbers"
+  ],
+  
+  "test_report_links": [
+    "/app/backend_test.py",
+    "/app/stripe_migration_test.py"
+  ],
+  
+  "success_percentage": {
+    "backend": "100% (46/46 tests in backend_test.py, 10/10 in stripe_migration_test.py)",
+    "frontend": "N/A (frontend testing not requested - backend only)",
+    "stripe_migration": "100% (all migration requirements verified)"
+  },
+  
+  "updated_files": [
+    "/app/backend_test.py",
+    "/app/stripe_migration_test.py"
+  ],
+  
+  "action_item_for_main_agent": "",
+  
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": false,
+  
+  "detailed_verification": {
+    "stripe_sdk_version": "15.1.0 (official)",
+    "stripe_api_endpoint": "https://api.stripe.com/v1/checkout/sessions",
+    "session_id_format": "cs_test_... (real Stripe test mode)",
+    "checkout_url_format": "https://checkout.stripe.com/c/pay/...",
+    "locale": "fr (French)",
+    "currency": "eur (Euro)",
+    "amount_calculation": "Correct (EUR * 100 = cents)",
+    "metadata_completeness": "Complete (kind, invoice_id/booking_id, user_id)",
+    "webhook_signature_validation": "Working (stripe.Webhook.construct_event)",
+    "idempotence": "Verified (_fulfil_paid_session checks payment_status)",
+    "security": "Verified (no client-side amounts, server-side only)",
+    "regression": "All existing endpoints working",
+    "scheduler": "APScheduler running (J-1 reminders at 18:00 Europe/Paris)",
+    "emails": "Brevo emails sent successfully (HTTP 201)"
+  },
+  
+  "manual_verification_completed": [
+    "✅ Backend logs checked for APScheduler startup",
+    "✅ Backend logs checked for Brevo email sends (HTTP 201)",
+    "✅ Backend logs checked for Stripe API calls to api.stripe.com",
+    "✅ Code review: import stripe (NOT emergentintegrations)",
+    "✅ Code review: locale='fr' in session creation",
+    "✅ Code review: line_items use price_data structure",
+    "✅ Code review: webhook signature validation with STRIPE_WEBHOOK_SECRET",
+    "✅ Code review: idempotence in _fulfil_paid_session",
+    "✅ Code review: security (no client-side amounts)"
+  ],
+  
+  "test_environment": {
+    "backend_url": "https://experts-domicile.preview.emergentagent.com/api",
+    "stripe_mode": "test",
+    "stripe_api_key": "sk_test_51TWKiB... (configured)",
+    "stripe_webhook_secret": "whsec_ge8bN9BbHHNBZJuAmcxbeGMmUHFcXt0C (configured)",
+    "otp_bypass_code": "1234 (working)",
+    "database": "MongoDB (localhost:27017/lebonclic)"
+  }
+}

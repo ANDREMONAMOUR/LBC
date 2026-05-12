@@ -1,7 +1,7 @@
-"""Stripe Checkout integration for Le Bon Clic.
+"""Stripe Checkout integration for Le Bon Clic — official Stripe Python SDK.
 
 Flows:
-  - Pay an existing unpaid invoice (server fetches amount in EUR)
+  - Pay an existing unpaid invoice (server fetches amount in EUR from MongoDB)
   - Pay a fixed booking deposit (server-side amount, never trusted from client)
 
 Endpoints (mounted under /api):
@@ -10,11 +10,11 @@ Endpoints (mounted under /api):
   GET  /api/payments/status/{session_id}
   POST /api/webhook/stripe
 
-Security notes:
-  - Amounts are ALWAYS computed server-side. The frontend only sends `origin_url`.
-  - A `payment_transactions` collection records every attempt for audit/idempotency.
-  - Webhook signature verified by the emergentintegrations SDK.
-  - Status check is idempotent: the linked invoice/booking is finalised once only.
+Security:
+  - Amounts are ALWAYS computed server-side. Frontend only sends `origin_url`.
+  - A `payment_transactions` collection records every attempt (audit + idempotency).
+  - Webhook signature verified with `STRIPE_WEBHOOK_SECRET`.
+  - Side effects fire exactly once per session, whether triggered by webhook or polling.
 """
 from __future__ import annotations
 
@@ -24,18 +24,18 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+import stripe
 
 import config
 from auth import current_user_id
 from models import PaymentTransaction
-from emergentintegrations.payments.stripe.checkout import (
-    StripeCheckout,
-    CheckoutSessionRequest,
-)
 
 log = logging.getLogger("payments")
 
 router = APIRouter(prefix="/api")
+
+# Configure SDK at import time so any module-level use works too.
+stripe.api_key = config.STRIPE_API_KEY
 
 
 # -------- Pydantic input bodies --------
@@ -47,13 +47,11 @@ class CheckoutInitBody(BaseModel):
 
 # -------- Helpers --------
 
-def _stripe(request: Request) -> StripeCheckout:
-    """Build a StripeCheckout instance. Webhook URL is derived from the request host."""
+def _require_stripe():
     if not config.STRIPE_API_KEY:
         raise HTTPException(status_code=503, detail="Stripe non configuré.")
-    host_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{host_url}/api/webhook/stripe"
-    return StripeCheckout(api_key=config.STRIPE_API_KEY, webhook_url=webhook_url)
+    # Re-assign in case env was updated; cheap.
+    stripe.api_key = config.STRIPE_API_KEY
 
 
 def _success_cancel_urls(origin: str) -> tuple[str, str]:
@@ -67,10 +65,23 @@ def _success_cancel_urls(origin: str) -> tuple[str, str]:
     )
 
 
-async def _record_transaction(db, *, session_id: str, kind: str, user_id: Optional[str],
-                              amount: float, currency: str, metadata: dict,
-                              invoice_id: Optional[str] = None,
-                              booking_id: Optional[str] = None) -> None:
+def _eur_amount_to_cents(amount_eur: float) -> int:
+    # Stripe expects an integer in the smallest currency unit
+    return int(round(float(amount_eur) * 100))
+
+
+async def _record_transaction(
+    db,
+    *,
+    session_id: str,
+    kind: str,
+    user_id: Optional[str],
+    amount: float,
+    currency: str,
+    metadata: dict,
+    invoice_id: Optional[str] = None,
+    booking_id: Optional[str] = None,
+) -> None:
     doc = PaymentTransaction(
         session_id=session_id,
         kind=kind,
@@ -89,7 +100,7 @@ async def _record_transaction(db, *, session_id: str, kind: str, user_id: Option
 
 # -------- Internal: fulfilment (idempotent) --------
 
-async def _fulfil_paid_session(db, session_id: str, status_obj) -> dict:
+async def _fulfil_paid_session(db, session_id: str, *, sdk_status: Optional[str] = None) -> dict:
     """Apply business effects of a paid session exactly once.
 
     Returns the updated payment_transactions document.
@@ -107,17 +118,19 @@ async def _fulfil_paid_session(db, session_id: str, status_obj) -> dict:
 
     now_iso = datetime.now(timezone.utc).isoformat()
     update = {
-        "status": getattr(status_obj, "status", tx.get("status")),
+        "status": sdk_status or "complete",
         "payment_status": "paid",
         "settled_at": now_iso,
     }
-    await db.payment_transactions.update_one(
+    res = await db.payment_transactions.update_one(
         {"session_id": session_id, "payment_status": {"$ne": "paid"}},
         {"$set": update},
     )
+    if res.modified_count == 0:
+        # Another concurrent call already settled this tx; nothing to do.
+        return await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0}) or {}
     tx.update(update)
 
-    # Apply side effects
     if tx.get("kind") == "invoice_payment" and tx.get("invoice_id"):
         await db.invoices.update_one(
             {"id": tx["invoice_id"]},
@@ -127,7 +140,9 @@ async def _fulfil_paid_session(db, session_id: str, status_obj) -> dict:
         user = await db.users.find_one({"id": tx.get("user_id")}, {"_id": 0}) if tx.get("user_id") else None
         if invoice and user:
             try:
-                await send_payment_confirmation_email(invoice, user, kind="invoice", amount_eur=tx.get("amount", 0))
+                await send_payment_confirmation_email(
+                    invoice, user, kind="invoice", amount_eur=tx.get("amount", 0)
+                )
             except Exception as e:
                 log.error(f"[stripe] confirmation email failed: {e}")
 
@@ -147,11 +162,73 @@ async def _fulfil_paid_session(db, session_id: str, status_obj) -> dict:
         user = await db.users.find_one({"id": tx.get("user_id")}, {"_id": 0}) if tx.get("user_id") else None
         if booking and user:
             try:
-                await send_payment_confirmation_email(booking, user, kind="deposit", amount_eur=tx.get("amount", 0))
+                await send_payment_confirmation_email(
+                    booking, user, kind="deposit", amount_eur=tx.get("amount", 0)
+                )
             except Exception as e:
                 log.error(f"[stripe] confirmation email failed: {e}")
 
     return tx
+
+
+# -------- Stripe call helpers (sync SDK) --------
+
+def _create_session_invoice(*, amount_eur: float, success_url: str, cancel_url: str,
+                            metadata: dict, invoice_label: str) -> stripe.checkout.Session:
+    _require_stripe()
+    return stripe.checkout.Session.create(
+        mode="payment",
+        payment_method_types=["card"],
+        line_items=[
+            {
+                "price_data": {
+                    "currency": "eur",
+                    "unit_amount": _eur_amount_to_cents(amount_eur),
+                    "product_data": {
+                        "name": invoice_label[:120] or "Facture Le Bon Clic",
+                        "description": "Service à la Personne (-50% crédit d'impôt SAP)",
+                    },
+                },
+                "quantity": 1,
+            }
+        ],
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata,
+        locale="fr",
+        billing_address_collection="auto",
+    )
+
+
+def _create_session_deposit(*, amount_eur: float, success_url: str, cancel_url: str,
+                            metadata: dict, booking_ref: str) -> stripe.checkout.Session:
+    _require_stripe()
+    return stripe.checkout.Session.create(
+        mode="payment",
+        payment_method_types=["card"],
+        line_items=[
+            {
+                "price_data": {
+                    "currency": "eur",
+                    "unit_amount": _eur_amount_to_cents(amount_eur),
+                    "product_data": {
+                        "name": f"Acompte rendez-vous {booking_ref}".strip(),
+                        "description": "Déduit de la facture finale. Remboursé si annulation 24h avant.",
+                    },
+                },
+                "quantity": 1,
+            }
+        ],
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata,
+        locale="fr",
+    )
+
+
+def _retrieve_session(session_id: str) -> stripe.checkout.Session:
+    _require_stripe()
+    return stripe.checkout.Session.retrieve(session_id)
 
 
 # -------- Endpoints --------
@@ -184,19 +261,21 @@ def attach(app, db):
             "invoice_ref": invoice.get("ref", ""),
             "user_id": uid,
         }
-        stripe = _stripe(request)
-        session = await stripe.create_checkout_session(
-            CheckoutSessionRequest(
-                amount=float(f"{amount:.2f}"),
-                currency="eur",
+        try:
+            session = _create_session_invoice(
+                amount_eur=amount,
                 success_url=success_url,
                 cancel_url=cancel_url,
                 metadata=metadata,
+                invoice_label=f"{invoice.get('ref','')} — {invoice.get('label','Prestation')}",
             )
-        )
+        except stripe.error.StripeError as e:
+            log.error(f"[stripe] create_session invoice failed: {e.user_message or e}")
+            raise HTTPException(status_code=502, detail="Stripe a refusé la session. Réessayez.")
+
         await _record_transaction(
             db,
-            session_id=session.session_id,
+            session_id=session.id,
             kind="invoice_payment",
             user_id=uid,
             amount=amount,
@@ -204,7 +283,7 @@ def attach(app, db):
             metadata=metadata,
             invoice_id=invoice_id,
         )
-        return {"url": session.url, "session_id": session.session_id}
+        return {"url": session.url, "session_id": session.id}
 
     @router.post("/payments/checkout/deposit/{booking_id}")
     async def checkout_deposit(
@@ -232,19 +311,21 @@ def attach(app, db):
             "booking_ref": booking.get("ref", ""),
             "user_id": uid,
         }
-        stripe = _stripe(request)
-        session = await stripe.create_checkout_session(
-            CheckoutSessionRequest(
-                amount=float(f"{amount:.2f}"),
-                currency="eur",
+        try:
+            session = _create_session_deposit(
+                amount_eur=amount,
                 success_url=success_url,
                 cancel_url=cancel_url,
                 metadata=metadata,
+                booking_ref=booking.get("ref", ""),
             )
-        )
+        except stripe.error.StripeError as e:
+            log.error(f"[stripe] create_session deposit failed: {e.user_message or e}")
+            raise HTTPException(status_code=502, detail="Stripe a refusé la session. Réessayez.")
+
         await _record_transaction(
             db,
-            session_id=session.session_id,
+            session_id=session.id,
             kind="booking_deposit",
             user_id=uid,
             amount=amount,
@@ -252,82 +333,109 @@ def attach(app, db):
             metadata=metadata,
             booking_id=booking_id,
         )
-        return {"url": session.url, "session_id": session.session_id}
+        return {"url": session.url, "session_id": session.id}
 
     @router.get("/payments/status/{session_id}")
-    async def get_status(session_id: str, request: Request):
-        """Poll endpoint. Idempotent: side-effects only fire once.
-
-        We always have a record in `payment_transactions`. If the SDK call to
-        Stripe fails (network / sandbox mismatch), we still return the latest
-        snapshot from the DB so the frontend can keep polling gracefully.
-        """
+    async def get_status(session_id: str):
+        """Poll endpoint. Idempotent: side-effects only fire once."""
         tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
         if not tx:
             raise HTTPException(status_code=404, detail="Session inconnue.")
 
-        stripe = _stripe(request)
         try:
-            status_obj = await stripe.get_checkout_status(session_id)
-        except Exception as e:
-            log.warning(f"[stripe] get_status fallback for {session_id}: {e}")
+            session = _retrieve_session(session_id)
+        except stripe.error.StripeError as e:
+            log.warning(f"[stripe] retrieve_session fallback for {session_id}: {e}")
+            # Defensive fallback so the SPA can keep polling without breaking.
             return {
                 "session_id": session_id,
                 "status": tx.get("status", "unknown"),
                 "payment_status": tx.get("payment_status", "unpaid"),
-                "amount_total": int(round(float(tx.get("amount", 0)) * 100)),
+                "amount_total": _eur_amount_to_cents(tx.get("amount", 0)),
                 "currency": tx.get("currency", "eur"),
                 "metadata": tx.get("metadata", {}),
                 "kind": tx.get("kind"),
                 "source": "db_fallback",
             }
 
-        if status_obj.payment_status == "paid":
-            await _fulfil_paid_session(db, session_id, status_obj)
+        s_status = getattr(session, "status", None) or "open"
+        s_payment_status = getattr(session, "payment_status", None) or "unpaid"
+
+        if s_payment_status == "paid":
+            await _fulfil_paid_session(db, session_id, sdk_status=s_status)
         else:
             await db.payment_transactions.update_one(
                 {"session_id": session_id, "payment_status": {"$ne": "paid"}},
-                {"$set": {"status": status_obj.status, "payment_status": status_obj.payment_status}},
+                {"$set": {"status": s_status, "payment_status": s_payment_status}},
             )
+
+        # Stripe metadata is a StripeObject; convert it safely.
+        md_obj = getattr(session, "metadata", None)
+        if md_obj is None:
+            md_dict = {}
+        elif hasattr(md_obj, "to_dict"):
+            md_dict = md_obj.to_dict() or {}
+        elif isinstance(md_obj, dict):
+            md_dict = dict(md_obj)
+        else:
+            md_dict = {}
 
         return {
             "session_id": session_id,
-            "status": status_obj.status,
-            "payment_status": status_obj.payment_status,
-            "amount_total": status_obj.amount_total,
-            "currency": status_obj.currency,
-            "metadata": status_obj.metadata,
+            "status": s_status,
+            "payment_status": s_payment_status,
+            "amount_total": getattr(session, "amount_total", None),
+            "currency": getattr(session, "currency", "eur"),
+            "metadata": md_dict,
             "kind": tx.get("kind"),
             "source": "stripe",
         }
 
     @router.post("/webhook/stripe")
     async def stripe_webhook(request: Request):
-        """Stripe → backend webhook. Verifies signature via SDK."""
+        """Stripe → backend webhook. Verifies signature with STRIPE_WEBHOOK_SECRET."""
         body = await request.body()
         signature = request.headers.get("Stripe-Signature", "")
-        stripe = _stripe(request)
+
+        if not config.STRIPE_WEBHOOK_SECRET:
+            log.error("[stripe webhook] STRIPE_WEBHOOK_SECRET not configured")
+            raise HTTPException(status_code=503, detail="Webhook non configuré.")
+
         try:
-            event = await stripe.handle_webhook(body, signature)
-        except Exception as e:
-            log.error(f"[stripe webhook] signature/parse error: {e}")
+            event = stripe.Webhook.construct_event(
+                payload=body,
+                sig_header=signature,
+                secret=config.STRIPE_WEBHOOK_SECRET,
+            )
+        except (ValueError, stripe.error.SignatureVerificationError) as e:
+            log.error(f"[stripe webhook] signature error: {e}")
             raise HTTPException(status_code=400, detail="Webhook invalide.")
 
+        event_type = event["type"]
+        data_obj = event["data"]["object"]
+        session_id = data_obj.get("id")
+        payment_status = data_obj.get("payment_status")
+
         log.info(
-            f"[stripe webhook] type={event.event_type} session={event.session_id} payment_status={event.payment_status}"
+            f"[stripe webhook] type={event_type} session={session_id} payment_status={payment_status}"
         )
 
-        if event.payment_status == "paid":
-            # Recreate a tiny status-like object so _fulfil_paid_session can use status field.
-            class _S:
-                status = "complete"
-                payment_status = "paid"
-            await _fulfil_paid_session(db, event.session_id, _S())
-        else:
+        if event_type == "checkout.session.completed" and payment_status == "paid":
+            await _fulfil_paid_session(db, session_id, sdk_status="complete")
+        elif event_type == "checkout.session.expired":
             await db.payment_transactions.update_one(
-                {"session_id": event.session_id, "payment_status": {"$ne": "paid"}},
-                {"$set": {"status": "webhook_seen", "payment_status": event.payment_status}},
+                {"session_id": session_id, "payment_status": {"$ne": "paid"}},
+                {"$set": {"status": "expired", "payment_status": "unpaid"}},
             )
+        elif event_type == "checkout.session.async_payment_succeeded" and payment_status == "paid":
+            await _fulfil_paid_session(db, session_id, sdk_status="complete")
+        else:
+            # Mirror status into our record for traceability
+            await db.payment_transactions.update_one(
+                {"session_id": session_id, "payment_status": {"$ne": "paid"}},
+                {"$set": {"status": "webhook_seen"}},
+            )
+
         return {"received": True}
 
     app.include_router(router)
