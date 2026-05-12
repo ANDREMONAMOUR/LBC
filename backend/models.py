@@ -90,6 +90,11 @@ class PrepUpdate(BaseModel):
     prep_checklist: dict
 
 
+class BookingReschedule(BaseModel):
+    date: str  # YYYY-MM-DD
+    time_window: str  # e.g. "10h - 11h"
+
+
 # ---------------- Invoices ----------------
 
 class Invoice(BaseModel):

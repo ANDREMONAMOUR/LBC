@@ -16,6 +16,7 @@ Routes:
   POST   /api/contact                  (contact Jordan — stored in DB)
   GET    /api/health
 """
+import asyncio
 import logging
 import random
 import secrets
@@ -31,13 +32,20 @@ import config
 from models import (
     SendOtpRequest, SendOtpResponse, VerifyOtpRequest, UserProfileIn,
     User, AuthResponse,
-    BookingCreate, Booking, PrepUpdate,
+    BookingCreate, Booking, PrepUpdate, BookingReschedule,
     Invoice, InvoiceListResponse,
     ContactMessageIn, ContactMessage,
 )
-from auth import create_token, current_user_id
+from auth import create_token, current_user_id, optional_user_id
 from brevo_sms import send_otp_sms
+from brevo_email import (
+    send_booking_created_email,
+    send_booking_updated_email,
+    send_booking_cancelled_email,
+    send_invoice_ready_email,
+)
 from pdf_invoice import build_invoice_pdf
+from scheduler import start_scheduler, shutdown_scheduler, send_j1_reminders
 
 
 logging.basicConfig(
@@ -83,6 +91,20 @@ def _human_booking_ref() -> str:
 
 def _human_invoice_ref(seq: int) -> str:
     return f"INV-{datetime.now(timezone.utc).year}-{seq:04d}"
+
+
+def _fire(coro):
+    """Fire-and-forget an awaitable. Errors are logged but never propagate."""
+    async def _runner():
+        try:
+            await coro
+        except Exception as e:
+            log.error(f"Background task failed: {e}")
+    try:
+        asyncio.get_running_loop().create_task(_runner())
+    except RuntimeError:
+        # No running loop — execute synchronously as a fallback.
+        asyncio.run(_runner())
 
 
 async def _ensure_user(phone: str) -> tuple[dict, bool]:
@@ -136,6 +158,10 @@ async def _seed_demo_invoices(user_id: str, user_phone: str):
         if s["paid"]:
             inv["paid_at"] = datetime.now(timezone.utc).isoformat()
         await db.invoices.insert_one(inv)
+        # Notify user that an invoice is available
+        user_doc = await db.users.find_one({"id": user_id}, {"_id": 0})
+        if user_doc:
+            _fire(send_invoice_ready_email(inv, user_doc))
 
 
 # ============ Health ============
@@ -308,6 +334,8 @@ async def create_booking(body: BookingCreate, uid: str = Depends(current_user_id
     booking["created_at"] = booking["created_at"].isoformat()
     await db.bookings.insert_one(booking)
     booking.pop("_id", None)
+    # Confirmation email (fire-and-forget)
+    _fire(send_booking_created_email(booking, user))
     return Booking(**booking)
 
 
@@ -353,6 +381,53 @@ async def cancel_booking(booking_id: str, uid: str = Depends(current_user_id)):
     )
     if not res:
         raise HTTPException(status_code=404, detail="Réservation introuvable.")
+    user = await db.users.find_one({"id": uid}, {"_id": 0})
+    if user:
+        _fire(send_booking_cancelled_email(res, user))
+    return Booking(**res)
+
+
+@api.post("/bookings/{booking_id}/reschedule", response_model=Booking)
+async def reschedule_booking(
+    booking_id: str,
+    body: BookingReschedule,
+    uid: str = Depends(current_user_id),
+):
+    if body.time_window not in VALID_TIME_WINDOWS:
+        raise HTTPException(status_code=400, detail="Plage horaire invalide.")
+    try:
+        d = datetime.fromisoformat(body.date).date()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Date invalide.")
+    today = datetime.now(timezone.utc).date()
+    if d < today:
+        raise HTTPException(status_code=400, detail="La date doit être dans le futur.")
+
+    res = await db.bookings.find_one_and_update(
+        {"id": booking_id, "user_id": uid, "status": "confirmed"},
+        {
+            "$set": {
+                "date": body.date,
+                "time_window": body.time_window,
+                "rescheduled_at": datetime.now(timezone.utc).isoformat(),
+            },
+            # Reset reminder so a new J-1 reminder is sent for the new date.
+            "$unset": {
+                "reminder_j1_sent_at": "",
+                "reminder_j1_sms_ok": "",
+                "reminder_j1_email_ok": "",
+            },
+        },
+        return_document=True,
+        projection={"_id": 0},
+    )
+    if not res:
+        raise HTTPException(
+            status_code=404, detail="Réservation introuvable ou non modifiable."
+        )
+    user = await db.users.find_one({"id": uid}, {"_id": 0})
+    if user:
+        _fire(send_booking_updated_email(res, user))
     return Booking(**res)
 
 
@@ -403,7 +478,7 @@ async def download_invoice_pdf(invoice_id: str, uid: str = Depends(current_user_
 @api.post("/contact")
 async def contact_marc(
     body: ContactMessageIn,
-    uid: Optional[str] = Depends(current_user_id),
+    uid: Optional[str] = Depends(optional_user_id),
 ):
     user = await db.users.find_one({"id": uid}, {"_id": 0}) if uid else None
     msg = ContactMessage(
@@ -415,6 +490,21 @@ async def contact_marc(
     msg["created_at"] = msg["created_at"].isoformat()
     await db.contact_messages.insert_one(msg)
     return {"status": "ok", "message": "Jordan vous répond sous 24h ouvrées."}
+
+
+# ============ Admin / Dev helpers ============
+
+@api.post("/admin/run-reminders-j1")
+async def admin_run_reminders_j1():
+    """Trigger the J-1 reminder pass on demand.
+
+    Only enabled while OTP_BYPASS_CODE is set (i.e. demo/testing). In a real
+    production deployment, replace with a proper admin-auth gate.
+    """
+    if not config.OTP_BYPASS_CODE:
+        raise HTTPException(status_code=404, detail="Not found")
+    count = await send_j1_reminders(db)
+    return {"status": "ok", "notified": count}
 
 
 # ---- Mount routes ----
@@ -437,12 +527,19 @@ async def startup():
         await db.users.create_index("phone", unique=True)
         await db.users.create_index("id", unique=True)
         await db.bookings.create_index("user_id")
+        await db.bookings.create_index([("date", 1), ("status", 1)])
         await db.invoices.create_index("user_id")
         log.info("Mongo indexes ensured")
     except Exception as e:
         log.warning(f"Index creation: {e}")
+    # APScheduler: J-1 reminders at 18:00 Europe/Paris
+    try:
+        start_scheduler(db)
+    except Exception as e:
+        log.warning(f"Scheduler start failed: {e}")
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    shutdown_scheduler()
     mongo_client.close()

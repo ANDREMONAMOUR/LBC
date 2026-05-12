@@ -39,3 +39,16 @@ async def current_user_id(authorization: Optional[str] = Header(None)) -> str:
     if not user_id:
         raise HTTPException(status_code=401, detail="Token invalide.")
     return user_id
+
+
+
+async def optional_user_id(authorization: Optional[str] = Header(None)) -> Optional[str]:
+    """Optional auth dependency - returns user_id if token present, None otherwise."""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    try:
+        token = authorization.split(" ", 1)[1].strip()
+        payload = decode_token(token)
+        return payload.get("sub")
+    except HTTPException:
+        return None
