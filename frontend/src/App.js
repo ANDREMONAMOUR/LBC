@@ -686,7 +686,7 @@ const BookingWizard = ({ draft, setDraft, onSubmit, onCgvOpen, submitting }) => 
                 Continuer
               </PrimaryButton>
             ) : (
-              <span className="text-sm text-ink-500">Validez votre devis à droite →</span>
+              <span className="text-sm font-bold text-ink-800 inline-flex items-center gap-1.5"><ArrowRight className="w-4 h-4 text-brandCyan" />Validez votre devis dans le panneau ci-contre</span>
             )}
           </div>
         </Card>
