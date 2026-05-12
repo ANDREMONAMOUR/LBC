@@ -38,6 +38,9 @@ import {
   Home,
   LogOut,
   Loader2,
+  Volume2,
+  VolumeX,
+  PauseCircle,
 } from "lucide-react";
 
 /* =========================================================
@@ -66,6 +69,158 @@ api.interceptors.request.use((cfg) => {
 /* ---------- Tiny utility components ---------- */
 
 const cx = (...xs) => xs.filter(Boolean).join(" ");
+
+/* ---------- Speech synthesis (Web Speech API) ---------- */
+
+const STORAGE_AUDIO = "lbc_audio_enabled_v1";
+
+const SpeechContext = React.createContext({
+  enabled: true,
+  toggle: () => {},
+  speak: () => {},
+  stop: () => {},
+  speakingId: null,
+});
+
+const SpeechProvider = ({ children }) => {
+  const supported = typeof window !== "undefined" && "speechSynthesis" in window;
+  const [enabled, setEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const v = localStorage.getItem(STORAGE_AUDIO);
+    return v === null ? true : v === "1";
+  });
+  const [speakingId, setSpeakingId] = useState(null);
+  const utterRef = useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_AUDIO, enabled ? "1" : "0");
+    if (!enabled && supported) window.speechSynthesis.cancel();
+  }, [enabled, supported]);
+
+  // Cancel speech on unmount + page hide
+  useEffect(() => {
+    if (!supported) return;
+    const handleHide = () => window.speechSynthesis.cancel();
+    window.addEventListener("pagehide", handleHide);
+    return () => {
+      window.removeEventListener("pagehide", handleHide);
+      window.speechSynthesis.cancel();
+    };
+  }, [supported]);
+
+  const stop = useCallback(() => {
+    if (supported) window.speechSynthesis.cancel();
+    setSpeakingId(null);
+    utterRef.current = null;
+  }, [supported]);
+
+  const speak = useCallback(
+    (text, id = "global") => {
+      if (!supported || !enabled || !text) return;
+      // Stop any current speech first
+      window.speechSynthesis.cancel();
+      const u = new window.SpeechSynthesisUtterance(text);
+      u.lang = "fr-FR";
+      u.rate = 0.95;
+      u.pitch = 1.0;
+      u.volume = 1.0;
+      // Pick a French voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const frVoice =
+        voices.find((v) => v.lang === "fr-FR") ||
+        voices.find((v) => v.lang && v.lang.startsWith("fr"));
+      if (frVoice) u.voice = frVoice;
+      u.onend = () => {
+        setSpeakingId((curr) => (curr === id ? null : curr));
+        utterRef.current = null;
+      };
+      u.onerror = () => {
+        setSpeakingId(null);
+        utterRef.current = null;
+      };
+      utterRef.current = u;
+      setSpeakingId(id);
+      window.speechSynthesis.speak(u);
+    },
+    [supported, enabled]
+  );
+
+  const toggle = useCallback(() => {
+    setEnabled((v) => {
+      if (v) {
+        if (supported) window.speechSynthesis.cancel();
+        setSpeakingId(null);
+      }
+      return !v;
+    });
+  }, [supported]);
+
+  // Voices on Chromium load asynchronously - trigger getVoices() once
+  useEffect(() => {
+    if (supported && typeof window.speechSynthesis.onvoiceschanged !== "undefined") {
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+  }, [supported]);
+
+  return (
+    <SpeechContext.Provider value={{ enabled, toggle, speak, stop, speakingId, supported }}>
+      {children}
+    </SpeechContext.Provider>
+  );
+};
+
+const useSpeech = () => React.useContext(SpeechContext);
+
+// Per-element inline speaker button. Reads `text` aloud when clicked.
+let _speakIdCounter = 0;
+const SpeakButton = ({ text, label = "Lire à voix haute", size = "md", className }) => {
+  const { speak, stop, speakingId, enabled, supported } = useSpeech();
+  const idRef = useRef(null);
+  if (idRef.current === null) {
+    _speakIdCounter += 1;
+    idRef.current = `spk-${_speakIdCounter}`;
+  }
+  if (!supported || !enabled) return null;
+  const speaking = speakingId === idRef.current;
+  const sizes = {
+    sm: "w-7 h-7",
+    md: "w-9 h-9",
+    lg: "w-10 h-10",
+  };
+  const iconSizes = { sm: "w-4 h-4", md: "w-5 h-5", lg: "w-5 h-5" };
+  return (
+    <button
+      type="button"
+      onClick={() => (speaking ? stop() : speak(text, idRef.current))}
+      aria-label={speaking ? "Arrêter la lecture" : label}
+      aria-pressed={speaking}
+      data-testid="speak-btn"
+      className={cx(
+        "inline-flex shrink-0 items-center justify-center rounded-full border-2 transition-all",
+        sizes[size],
+        speaking
+          ? "border-brandCyan bg-brandCyan text-white animate-pulse-soft"
+          : "border-brandCyan/40 bg-brandCyan-soft text-brandCyan hover:border-brandCyan hover:bg-brandCyan/15",
+        className
+      )}
+      title={speaking ? "Arrêter la lecture" : label}
+    >
+      {speaking ? (
+        <PauseCircle className={iconSizes[size]} />
+      ) : (
+        <Volume2 className={iconSizes[size]} />
+      )}
+    </button>
+  );
+};
+
+// Heading wrapper that adds a SpeakButton aligned with the text
+const SpokenHeading = ({ as: Tag = "h3", text, children, className, btnSize = "md" }) => (
+  <div className="flex items-start gap-3">
+    <Tag className={className}>{children}</Tag>
+    <SpeakButton text={text || (typeof children === "string" ? children : "")} size={btnSize} />
+  </div>
+);
 
 const Logo = ({ size = "md" }) => {
   const sizes = {
@@ -157,7 +312,9 @@ const TextArea = (props) => (
 
 /* ---------- Header ---------- */
 
-const Header = ({ user, onLogout, onGoHome, onIncreaseFont, fontScale }) => (
+const Header = ({ user, onLogout, onGoHome, onIncreaseFont, fontScale }) => {
+  const { enabled, toggle, supported } = useSpeech();
+  return (
   <header className="sticky top-0 z-30">
     <div className="bg-ink-800 text-white">
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-2.5 flex items-center justify-center md:justify-between gap-4 text-sm md:text-[15px]">
@@ -175,6 +332,24 @@ const Header = ({ user, onLogout, onGoHome, onIncreaseFont, fontScale }) => (
           <Logo />
         </button>
         <div className="flex items-center gap-2 md:gap-3">
+          {supported && (
+            <button
+              data-testid="audio-toggle-btn"
+              onClick={toggle}
+              title={enabled ? "Désactiver la lecture audio" : "Activer la lecture audio"}
+              aria-label={enabled ? "Désactiver la lecture audio" : "Activer la lecture audio"}
+              aria-pressed={enabled}
+              className={cx(
+                "inline-flex items-center gap-1.5 px-3 md:px-4 py-2.5 rounded-xl border-2 transition-all font-bold",
+                enabled
+                  ? "border-brandCyan bg-brandCyan-soft text-brandCyan"
+                  : "border-ink-200 bg-white text-ink-500 hover:border-ink-300"
+              )}
+            >
+              {enabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              <span className="text-sm md:text-base hidden sm:inline">{enabled ? "Audio" : "Muet"}</span>
+            </button>
+          )}
           <button
             data-testid="font-increase-btn"
             onClick={onIncreaseFont}
@@ -212,7 +387,8 @@ const Header = ({ user, onLogout, onGoHome, onIncreaseFont, fontScale }) => (
       </div>
     </div>
   </header>
-);
+  );
+};
 
 /* ---------- Landing ---------- */
 
@@ -242,9 +418,17 @@ const Landing = ({ onStartAuth }) => (
     <section className="grid md:grid-cols-12 gap-10 items-center animate-fade-in-up">
       <div className="md:col-span-7">
         <Badge tone="green" icon={ShieldCheck}>Agréé Service à la Personne · 50% de crédit d'impôt</Badge>
-        <h1 className="mt-5 font-extrabold tracking-tight text-ink-900 leading-[1.05] text-4xl sm:text-5xl md:text-6xl lg:text-7xl">
-          L'expertise informatique <span className="text-gradient-brand">chez vous</span>
-        </h1>
+        <div className="mt-5 flex items-start gap-3">
+          <h1 className="font-extrabold tracking-tight text-ink-900 leading-[1.05] text-4xl sm:text-5xl md:text-6xl lg:text-7xl">
+            L'expertise informatique <span className="text-gradient-brand">chez vous</span>
+          </h1>
+          <SpeakButton
+            size="lg"
+            text="L'expertise informatique chez vous. Dépannage, conseil et accompagnement à domicile sur Lyon. Un artisan de confiance, patient et sans jargon, pour retrouver votre sérénité numérique, avec une facture divisée par deux grâce à l'État."
+            label="Écouter la présentation"
+            className="mt-3"
+          />
+        </div>
         <p className="mt-6 text-lg md:text-xl text-ink-600 max-w-xl leading-relaxed">
           Dépannage, conseil et accompagnement à domicile sur Lyon. Un artisan de confiance, patient et sans jargon, pour
           retrouver votre sérénité numérique — avec une facture divisée par deux grâce à l'État.
@@ -464,6 +648,17 @@ const AuthFlow = ({ onCancel, onAuthenticated }) => {
               {step === "profile" && "Quelques informations utiles"}
             </h2>
           </div>
+          <SpeakButton
+            size="md"
+            className="ml-auto"
+            text={
+              step === "phone"
+                ? "Connexion sécurisée par SMS. Aucun mot de passe à retenir. Nous vous envoyons un code à 4 chiffres par SMS."
+                : step === "code"
+                ? "Saisissez votre code à 4 chiffres reçu par SMS. Pour la démo, le code 1234 fonctionne toujours."
+                : "Création de votre dossier. Pour éditer une facture conforme au crédit d'impôt et faciliter mon déplacement. Veuillez compléter votre prénom, nom, adresse e-mail, adresse postale, et les précisions d'accès."
+            }
+          />
         </div>
 
         <p className="text-ink-600 mt-1 mb-6 text-base md:text-lg">
@@ -588,7 +783,13 @@ const BookingWizard = ({ draft, setDraft, onSubmit, onCgvOpen, submitting }) => 
 
           {step === 1 && (
             <section className="animate-fade-in-up">
-              <h3 className="text-2xl md:text-3xl font-extrabold text-ink-900">Quel appareil nécessite mon intervention&nbsp;?</h3>
+              <div className="flex items-start gap-3">
+                <h3 className="text-2xl md:text-3xl font-extrabold text-ink-900">Quel appareil nécessite mon intervention&nbsp;?</h3>
+                <SpeakButton
+                  text="Quel appareil nécessite mon intervention ? Sélectionnez la catégorie principale pour préparer mon déplacement chez vous. Quatre choix : Ordinateur Mac ou PC, Smartphone et tablette, Internet et périphériques, ou Comptes et sécurité."
+                  className="ml-auto mt-1"
+                />
+              </div>
               <p className="mt-2 text-ink-600">Sélectionnez la catégorie principale pour préparer mon déplacement chez vous.</p>
               <div className="mt-6 grid sm:grid-cols-2 gap-3">
                 {DEVICES.map((d) => {
@@ -618,7 +819,13 @@ const BookingWizard = ({ draft, setDraft, onSubmit, onCgvOpen, submitting }) => 
 
           {step === 2 && (
             <section className="animate-fade-in-up">
-              <h3 className="text-2xl md:text-3xl font-extrabold text-ink-900">Décrivez ce qui ne va pas, simplement.</h3>
+              <div className="flex items-start gap-3">
+                <h3 className="text-2xl md:text-3xl font-extrabold text-ink-900">Décrivez ce qui ne va pas, simplement.</h3>
+                <SpeakButton
+                  text="Décrivez ce qui ne va pas, simplement. Expliquez avec vos mots, comme à un proche. Pas besoin de termes techniques."
+                  className="ml-auto mt-1"
+                />
+              </div>
               <p className="mt-2 text-ink-600">Expliquez avec vos mots, comme à un proche. Pas besoin de termes techniques.</p>
               <div className="mt-6">
                 <Field label="Votre situation" required hint="Ex. : 'Mon ordinateur est lent et fait du bruit.'">
@@ -641,7 +848,13 @@ const BookingWizard = ({ draft, setDraft, onSubmit, onCgvOpen, submitting }) => 
 
           {step === 3 && (
             <section className="animate-fade-in-up">
-              <h3 className="text-2xl md:text-3xl font-extrabold text-ink-900">Choisissez votre créneau</h3>
+              <div className="flex items-start gap-3">
+                <h3 className="text-2xl md:text-3xl font-extrabold text-ink-900">Choisissez votre créneau</h3>
+                <SpeakButton
+                  text="Choisissez votre créneau. Nous nous engageons sur une plage horaire, jamais une heure exacte, pour respecter votre tranquillité. Sélectionnez d'abord la date souhaitée, puis la plage horaire qui vous convient."
+                  className="ml-auto mt-1"
+                />
+              </div>
               <p className="mt-2 text-ink-600">Nous nous engageons sur une plage horaire (jamais une heure exacte) pour respecter votre tranquillité.</p>
               <div className="mt-6 grid md:grid-cols-2 gap-5">
                 <Field label="Date souhaitée" required>
@@ -767,7 +980,12 @@ const Suivi = ({ booking, onCancel, onPrepUpdate }) => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <Badge tone="cyan" icon={TimerReset}>Intervention confirmée</Badge>
-              <h3 className="mt-3 text-2xl md:text-3xl font-extrabold text-ink-900">{device?.label}</h3>
+              <div className="mt-3 flex items-start gap-3">
+                <h3 className="text-2xl md:text-3xl font-extrabold text-ink-900">{device?.label}</h3>
+                <SpeakButton
+                  text={`Intervention confirmée. ${device?.label || ""}. Référence ${booking.ref}. Rendez-vous prévu ${formatDateFR(booking.date)} entre ${booking.time_window}. Adresse : ${booking.address}. ${booking.access_details ? "Précisions d'accès : " + booking.access_details + "." : ""} Votre demande : ${booking.symptom}`}
+                />
+              </div>
               <p className="mt-1 text-ink-600">Réf. {booking.ref}</p>
             </div>
             <div className="text-right">
@@ -793,7 +1011,13 @@ const Suivi = ({ booking, onCancel, onPrepUpdate }) => {
         </Card>
 
         <Card>
-          <div className="flex items-center gap-2 mb-2"><ListChecks className="w-5 h-5 text-brandPurple" /><h3 className="text-xl md:text-2xl font-extrabold text-ink-900">Préparer ma visite</h3></div>
+          <div className="flex items-center gap-2 mb-2"><ListChecks className="w-5 h-5 text-brandPurple" /><h3 className="text-xl md:text-2xl font-extrabold text-ink-900">Préparer ma visite</h3>
+            <SpeakButton
+              className="ml-auto"
+              size="sm"
+              text={"Préparer ma visite. Cochez chaque étape pour me faciliter le travail le jour J. " + PREP_CHECKLIST.join(". ") + "."}
+            />
+          </div>
           <p className="text-ink-600 mb-4">Cochez chaque étape pour me faciliter le travail le jour J.</p>
           <ul className="space-y-2">
             {PREP_CHECKLIST.map((item, i) => {
@@ -842,7 +1066,24 @@ const Suivi = ({ booking, onCancel, onPrepUpdate }) => {
 const InvoiceList = ({ invoices, onDownload, onPay, payingId, downloadingId }) => (
   <Card>
     <div className="flex items-center justify-between mb-4">
-      <h3 className="text-2xl font-extrabold text-ink-900">Mes factures SAP</h3>
+      <div className="flex items-center gap-3">
+        <h3 className="text-2xl font-extrabold text-ink-900">Mes factures SAP</h3>
+        <SpeakButton
+          size="sm"
+          text={
+            "Mes factures Service à la Personne. Toutes vos factures sont conformes pour le crédit d'impôt 50%. " +
+            (invoices.length === 0
+              ? "Aucune facture pour le moment."
+              : invoices
+                  .map(
+                    (i) =>
+                      `${i.label}. Référence ${i.ref}. ${i.hours} heure${i.hours > 1 ? "s" : ""}. Montant net après crédit d'impôt : ${i.net_total} euros. Statut : ${i.paid ? "payée" : "à régler"}.`
+                  )
+                  .join(" ")) +
+            " Vous pouvez télécharger chaque facture au format PDF."
+          }
+        />
+      </div>
       <Badge tone="green" icon={ShieldCheck}>Conformes crédit d'impôt</Badge>
     </div>
     <div className="divide-y divide-ink-200">
@@ -926,7 +1167,13 @@ const Dashboard = ({
         {tab === "factures" && (<InvoiceList invoices={invoices} onDownload={onDownloadInvoice} onPay={onPayInvoice} payingId={payingId} downloadingId={downloadingId} />)}
         {tab === "compte" && (
           <Card>
-            <h3 className="text-2xl font-extrabold text-ink-900 mb-4">Mon dossier</h3>
+            <div className="flex items-center gap-3 mb-4">
+              <h3 className="text-2xl font-extrabold text-ink-900">Mon dossier</h3>
+              <SpeakButton
+                size="sm"
+                text={`Mon dossier. Identité : ${user.first_name} ${user.last_name}. Email : ${user.email}. Téléphone : ${user.phone}. Adresse : ${user.address}. ${user.access_details ? "Précisions d'accès : " + user.access_details : ""}`}
+              />
+            </div>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="rounded-xl bg-ink-50 p-4">
                 <div className="text-xs uppercase tracking-wide text-ink-500 font-bold">Identité</div>
@@ -991,12 +1238,20 @@ const Lumi = ({ open, setOpen, isAuthed, onContactMarc }) => {
               <div className="p-4 max-h-[70vh] overflow-y-auto">
                 {view === "menu" && (
                   <div className="space-y-2">
-                    <p className="text-ink-600 text-sm mb-2">Bonjour ! Choisissez une question ou contactez Jordan directement.</p>
+                    <div className="flex items-start gap-2 mb-2">
+                      <p className="text-ink-600 text-sm flex-1">Bonjour ! Choisissez une question ou contactez Jordan directement. Cliquez sur le haut-parleur 🔊 à côté d'une question pour entendre la réponse.</p>
+                      <SpeakButton size="sm" text="Bonjour ! Choisissez une question ou contactez Jordan directement. Cliquez sur le haut-parleur à côté d'une question pour entendre la réponse." />
+                    </div>
                     {FAQ.map((f, i) => (
-                      <button key={i} data-testid={`faq-${i}`} onClick={() => { setActiveFaq(i); setView("answer"); }}
-                        className="w-full text-left rounded-xl border-2 border-ink-200 px-4 py-3 hover:border-brandPurple transition-colors">
-                        <span className="font-bold text-ink-800">{f.q}</span>
-                      </button>
+                      <div key={i} className="flex items-stretch gap-2">
+                        <button data-testid={`faq-${i}`} onClick={() => { setActiveFaq(i); setView("answer"); }}
+                          className="flex-1 text-left rounded-xl border-2 border-ink-200 px-4 py-3 hover:border-brandPurple transition-colors">
+                          <span className="font-bold text-ink-800">{f.q}</span>
+                        </button>
+                        <div className="flex items-center">
+                          <SpeakButton text={`${f.q} ${f.a}`} label={`Écouter la réponse à : ${f.q}`} />
+                        </div>
+                      </div>
                     ))}
                     <button data-testid="contact-marc-btn" onClick={() => setView("contact")} disabled={!isAuthed}
                       title={!isAuthed ? "Connectez-vous d'abord" : ""}
@@ -1013,7 +1268,10 @@ const Lumi = ({ open, setOpen, isAuthed, onContactMarc }) => {
                 {view === "answer" && activeFaq !== null && (
                   <div className="animate-fade-in">
                     <button onClick={() => setView("menu")} className="text-sm font-bold text-ink-600 hover:text-ink-900 inline-flex items-center gap-1 mb-3"><ChevronLeft className="w-4 h-4" /> Retour</button>
-                    <h4 className="font-extrabold text-ink-900 text-lg">{FAQ[activeFaq].q}</h4>
+                    <div className="flex items-start gap-3">
+                      <h4 className="font-extrabold text-ink-900 text-lg flex-1">{FAQ[activeFaq].q}</h4>
+                      <SpeakButton text={`${FAQ[activeFaq].q} ${FAQ[activeFaq].a}`} label="Écouter la réponse" />
+                    </div>
                     <p className="mt-2 text-ink-700 leading-relaxed">{FAQ[activeFaq].a}</p>
                     {isAuthed && (
                       <button onClick={() => setView("contact")} className="mt-4 inline-flex items-center gap-2 text-brandCyan font-bold hover:text-brandPurple">
@@ -1073,7 +1331,7 @@ const CgvModal = ({ open, onClose }) => {
 
 /* ---------- App root ---------- */
 
-function App() {
+function AppInner() {
   const [view, setView] = useState("landing");
   const [user, setUser] = useState(null);
   const [booking, setBooking] = useState(null);
@@ -1265,4 +1523,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <SpeechProvider>
+      <AppInner />
+    </SpeechProvider>
+  );
+}
