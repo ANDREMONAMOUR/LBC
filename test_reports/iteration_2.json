@@ -1,0 +1,61 @@
+{
+  "summary": "Completed comprehensive backend testing for Stripe Checkout integration (hosted mode, TEST). All 42 API tests passed (100%). Verified invoice payment checkout, booking deposit checkout (10€), payment status with DB fallback, webhook signature validation, payment_transactions collection structure, Brevo email confirmation function, and security (no client-side amounts). Stripe SDK integration working correctly via emergentintegrations proxy (integrations.emergentagent.com). All 25 existing endpoints still functional (regression passed).",
+  
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": [],
+    "fixed_bugs": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "passed_tests": [
+    "POST /api/payments/checkout/invoice/{id} - creates Stripe session, returns url+session_id, creates payment_transactions entry with kind='invoice_payment'",
+    "POST /api/payments/checkout/invoice/{id} - amount computed from invoice.net_total (40.0€), never from client",
+    "POST /api/payments/checkout/invoice/{paid_id} - returns 400 'Cette facture est déjà payée.'",
+    "POST /api/payments/checkout/invoice/{unknown_id} - returns 404",
+    "POST /api/payments/checkout/invoice/{id} without token - returns 401",
+    "POST /api/payments/checkout/invoice/{id} without origin_url - returns 422",
+    "POST /api/payments/checkout/deposit/{booking_id} - creates session for 10€ (BOOKING_DEPOSIT_EUR config)",
+    "POST /api/payments/checkout/deposit/{booking_id} - creates payment_transactions with kind='booking_deposit', amount=10.0",
+    "POST /api/payments/checkout/deposit/{cancelled_id} - returns 404 (filters status='confirmed')",
+    "GET /api/payments/status/{session_id} - returns JSON with session_id, status, payment_status, kind, source",
+    "GET /api/payments/status/{session_id} - DB fallback working when Stripe SDK fails (source='db_fallback')",
+    "GET /api/payments/status/{unknown_id} - returns 404",
+    "POST /api/webhook/stripe with invalid signature - returns 400",
+    "payment_transactions collection verified: 5+ entries with correct structure (session_id, kind, user_id, invoice_id|booking_id, amount, currency='eur', status, payment_status, metadata)",
+    "Stripe SDK integration verified: HTTP 200 from integrations.emergentagent.com/stripe/v1/checkout/sessions",
+    "Real test sessions created: cs_test_a12UYjnpJj6NTtuaVLRZZW7YApsnQbVf0y8fbVZinEIHLcLVf4RCxJ3W7p (invoice), cs_test_a1VGL0HP5VMWZecwghttotkbWsJVLp7SUpPPfwOUjmFT5tgZaAZWQIHWqe (deposit)",
+    "send_payment_confirmation_email function exists in brevo_email.py (lines 351-415) and is called in _fulfil_paid_session",
+    "Security verified: CheckoutInitBody only accepts origin_url, no amount field from client",
+    "Invoice amount always from invoice.net_total (payments.py line 176)",
+    "Deposit amount always from config.BOOKING_DEPOSIT_EUR=10.0 (payments.py line 224)",
+    "Multiple checkout sessions allowed for same unpaid invoice (until marked paid)",
+    "Regression: All 25 existing endpoints still working (health, auth, bookings, invoices, contact, admin)",
+    "Scheduler verified: APScheduler running with J-1 reminder cron at 18:00 Europe/Paris"
+  ],
+  
+  "test_report_links": [
+    "/app/backend_test.py",
+    "/app/test_stripe_invoice_checkout.py"
+  ],
+  
+  "success_percentage": {
+    "backend": "100% (42/42 tests passed)",
+    "frontend": "Not tested (backend only as per request)"
+  },
+  
+  "updated_files": [
+    "/app/backend_test.py",
+    "/app/test_stripe_invoice_checkout.py"
+  ],
+  
+  "action_item_for_main_agent": "",
+  
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": false
+}

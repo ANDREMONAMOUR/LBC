@@ -1073,7 +1073,7 @@ const DeviceAvatar = ({ deviceId, className }) => {
   return <div className={cx("w-10 h-10 rounded-lg inline-flex items-center justify-center", entry.tone, className)}><Icon className="w-5 h-5" /></div>;
 };
 
-const Suivi = ({ booking, onAskCancel, onPrepUpdate }) => {
+const Suivi = ({ booking, onAskCancel, onPrepUpdate, onPayDeposit, payingDepositId }) => {
   if (!booking) {
     return (
       <Card className="text-center">
@@ -1140,6 +1140,37 @@ const Suivi = ({ booking, onAskCancel, onPrepUpdate }) => {
 
       <aside className="space-y-6">
         <Card>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-sapGreen" />
+            <h4 className="text-lg font-extrabold text-ink-900">Sécuriser mon créneau</h4>
+          </div>
+          {booking.deposit_paid ? (
+            <div className="mt-3 rounded-xl bg-sapGreen-soft border-2 border-sapGreen/40 p-4">
+              <Badge tone="green" icon={CheckCircle2}>Acompte versé</Badge>
+              <p className="mt-2 text-sm text-ink-700">
+                <strong>{(booking.deposit_amount || 10).toFixed(2)}&nbsp;€</strong> reçus.
+                Cet acompte sera déduit de votre facture finale.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="mt-1 text-sm text-ink-600">
+                Verser un acompte de <strong>10&nbsp;€</strong> (déduit de la facture finale)
+                pour sécuriser votre créneau. Remboursé si annulation 24h avant.
+              </p>
+              <button data-testid="pay-deposit-btn" onClick={() => onPayDeposit && onPayDeposit(booking.id)}
+                disabled={payingDepositId === booking.id}
+                className="mt-4 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-sapGreen text-white font-bold hover:bg-sapGreen/90 disabled:opacity-50">
+                {payingDepositId === booking.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                Payer 10&nbsp;€ en sécurité
+              </button>
+              <p className="mt-2 text-xs text-ink-500 inline-flex items-center gap-1">
+                <Lock className="w-3 h-3" />Paiement sécurisé par Stripe
+              </p>
+            </>
+          )}
+        </Card>
+        <Card>
           <h4 className="text-lg font-extrabold text-ink-900">Annulation gratuite</h4>
           <p className="mt-1 text-sm text-ink-600">Annulation sans frais jusqu'à 24h avant.</p>
           <button data-testid="cancel-booking-btn" onClick={onAskCancel}
@@ -1182,7 +1213,10 @@ const InvoiceList = ({ invoices, onDownload, onPay, payingId, downloadingId, loa
             <div className="md:col-span-2 flex md:justify-end gap-2">
               {!inv.paid && (
                 <button data-testid={`pay-${inv.id}`} onClick={() => onPay(inv.id)} disabled={payingId === inv.id}
-                  className="px-3 py-2 rounded-lg bg-ink-800 text-white text-sm font-bold hover:bg-ink-900 disabled:opacity-50">{payingId === inv.id ? "…" : "Régler"}</button>
+                  className="px-3 py-2 rounded-lg bg-ink-800 text-white text-sm font-bold hover:bg-ink-900 disabled:opacity-50 inline-flex items-center gap-1">
+                  {payingId === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                  <span>Payer en ligne</span>
+                </button>
               )}
               <button data-testid={`download-${inv.id}`} onClick={() => onDownload(inv)} disabled={downloadingId === inv.id}
                 className="px-3 py-2 rounded-lg border-2 border-ink-200 text-ink-800 text-sm font-bold hover:border-ink-300 inline-flex items-center gap-1 disabled:opacity-50">
@@ -1197,7 +1231,7 @@ const InvoiceList = ({ invoices, onDownload, onPay, payingId, downloadingId, loa
   </Card>
 );
 
-const Dashboard = ({ user, booking, draftBooking, setDraftBooking, onSubmitBooking, onAskCancel, onPrepUpdate, onCgvOpen, invoices, onDownloadInvoice, onPayInvoice, payingId, downloadingId, submittingBooking, loadingInvoices }) => {
+const Dashboard = ({ user, booking, draftBooking, setDraftBooking, onSubmitBooking, onAskCancel, onPrepUpdate, onCgvOpen, invoices, onDownloadInvoice, onPayInvoice, onPayDeposit, payingId, payingDepositId, downloadingId, submittingBooking, loadingInvoices }) => {
   const [tab, setTab] = useState(booking ? "suivi" : "booking");
   const tabs = [
     { id: "booking", label: "Réserver", icon: CalendarDays },
@@ -1226,7 +1260,7 @@ const Dashboard = ({ user, booking, draftBooking, setDraftBooking, onSubmitBooki
       </div>
       <div className="animate-fade-in-up">
         {tab === "booking" && <BookingWizard draft={draftBooking} setDraft={setDraftBooking} onSubmit={(cgv) => onSubmitBooking(cgv).then((ok) => ok && setTab("suivi"))} onCgvOpen={onCgvOpen} submitting={submittingBooking} />}
-        {tab === "suivi" && <Suivi booking={booking} onAskCancel={onAskCancel} onPrepUpdate={onPrepUpdate} />}
+        {tab === "suivi" && <Suivi booking={booking} onAskCancel={onAskCancel} onPrepUpdate={onPrepUpdate} onPayDeposit={onPayDeposit} payingDepositId={payingDepositId} />}
         {tab === "factures" && <InvoiceList invoices={invoices} onDownload={onDownloadInvoice} onPay={onPayInvoice} payingId={payingId} downloadingId={downloadingId} loading={loadingInvoices} />}
         {tab === "compte" && (
           <Card>
@@ -1380,6 +1414,7 @@ function AppInner() {
   const [toast, setToast] = useState(null);
   const [submittingBooking, setSubmittingBooking] = useState(false);
   const [payingId, setPayingId] = useState(null);
+  const [payingDepositId, setPayingDepositId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -1435,10 +1470,105 @@ function AppInner() {
   };
   const onPayInvoice = async (id) => {
     setPayingId(id);
-    try { const { data } = await api.post(`/invoices/${id}/pay`); setInvoices((arr) => arr.map((i) => (i.id === id ? data : i))); showToast("Paiement enregistré"); }
-    catch (e) { showToast(e.response?.data?.detail || "Erreur paiement."); }
-    finally { setPayingId(null); }
+    try {
+      const origin = window.location.origin;
+      const { data } = await api.post(`/payments/checkout/invoice/${id}`, { origin_url: origin });
+      if (data && data.url) {
+        // Redirect to Stripe Checkout (hosted page)
+        window.location.href = data.url;
+        return;
+      }
+      throw new Error("Lien de paiement indisponible.");
+    } catch (e) {
+      showToast(e.response?.data?.detail || "Erreur paiement.");
+      setPayingId(null);
+    }
   };
+
+  const onPayDeposit = async (bookingId) => {
+    setPayingDepositId(bookingId);
+    try {
+      const origin = window.location.origin;
+      const { data } = await api.post(`/payments/checkout/deposit/${bookingId}`, { origin_url: origin });
+      if (data && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      throw new Error("Lien de paiement indisponible.");
+    } catch (e) {
+      showToast(e.response?.data?.detail || "Erreur acompte.");
+      setPayingDepositId(null);
+    }
+  };
+
+  // Stripe return: detect ?payment=success|cancelled&session_id=... and poll
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const paymentParam = url.searchParams.get("payment");
+    const sessionId = url.searchParams.get("session_id");
+    if (!paymentParam) return;
+    // Clear query so refresh doesn't re-poll
+    const cleanUrl = window.location.pathname + window.location.hash;
+
+    if (paymentParam === "cancelled") {
+      showToast("Paiement annulé. Vous pouvez réessayer quand vous voulez.");
+      window.history.replaceState({}, "", cleanUrl);
+      return;
+    }
+    if (paymentParam !== "success" || !sessionId) {
+      window.history.replaceState({}, "", cleanUrl);
+      return;
+    }
+
+    let attempts = 0;
+    let stopped = false;
+    const maxAttempts = 8;
+    const pollInterval = 2000;
+
+    const tick = async () => {
+      if (stopped) return;
+      attempts += 1;
+      try {
+        const { data } = await api.get(`/payments/status/${sessionId}`);
+        if (data.payment_status === "paid") {
+          stopped = true;
+          const isDeposit = data.kind === "booking_deposit";
+          showToast(isDeposit ? "Merci ! Acompte reçu, votre créneau est sécurisé." : "Merci ! Votre paiement a bien été reçu.");
+          // Refresh invoices and active booking so UI reflects new state
+          try {
+            const [b, inv] = await Promise.all([api.get("/bookings/active"), api.get("/invoices")]);
+            setBooking(b.data || null);
+            setInvoices(inv.data.invoices || []);
+          } catch { /* ignore */ }
+          window.history.replaceState({}, "", cleanUrl);
+          return;
+        }
+        if (data.status === "expired") {
+          stopped = true;
+          showToast("Cette session de paiement a expiré.");
+          window.history.replaceState({}, "", cleanUrl);
+          return;
+        }
+        if (attempts >= maxAttempts) {
+          stopped = true;
+          showToast("Paiement en cours de validation. Actualisez dans quelques instants.");
+          window.history.replaceState({}, "", cleanUrl);
+          return;
+        }
+        setTimeout(tick, pollInterval);
+      } catch {
+        if (attempts >= maxAttempts) {
+          stopped = true;
+          window.history.replaceState({}, "", cleanUrl);
+          return;
+        }
+        setTimeout(tick, pollInterval);
+      }
+    };
+    tick();
+    return () => { stopped = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const onContactJordan = async (message) => { await api.post("/contact", { message, context: "lumi" }); };
 
   const acceptCookies = () => { localStorage.setItem(STORAGE_COOKIES, "ok"); setCookieAck("ok"); };
@@ -1454,8 +1584,8 @@ function AppInner() {
       {view === "dashboard" && user && (
         <Dashboard user={user} booking={booking} draftBooking={draftBooking} setDraftBooking={setDraftBooking}
           onSubmitBooking={onSubmitBooking} onAskCancel={askCancel} onPrepUpdate={onPrepUpdate} onCgvOpen={() => setCgvOpen(true)}
-          invoices={invoices} onDownloadInvoice={onDownloadInvoice} onPayInvoice={onPayInvoice}
-          payingId={payingId} downloadingId={downloadingId} submittingBooking={submittingBooking} loadingInvoices={loadingInvoices} />
+          invoices={invoices} onDownloadInvoice={onDownloadInvoice} onPayInvoice={onPayInvoice} onPayDeposit={onPayDeposit}
+          payingId={payingId} payingDepositId={payingDepositId} downloadingId={downloadingId} submittingBooking={submittingBooking} loadingInvoices={loadingInvoices} />
       )}
 
       <footer className="mt-12 border-t border-ink-200 bg-white pb-20 md:pb-0">

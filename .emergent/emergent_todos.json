@@ -1,34 +1,38 @@
 [
   {
-    "content": "P0 - Vérifier compilation frontend (logs + esbuild)",
+    "content": "Setup Stripe: ajouter STRIPE_API_KEY au .env + config.py",
     "status": "completed"
   },
   {
-    "content": "P0 - Capture d'écran Landing + Auth + Dashboard pour valider visuellement",
+    "content": "Backend: créer module payments.py (création sessions + status + webhook)",
     "status": "completed"
   },
   {
-    "content": "P0 - Corriger éventuels bugs critiques détectés",
+    "content": "Backend: ajouter modèles PaymentTransaction + flags Invoice/Booking",
     "status": "completed"
   },
   {
-    "content": "P1 - Module brevo_email.py avec API Brevo Transactional",
+    "content": "Backend: brancher 4 endpoints (/api/payments/checkout/invoice, deposit, status, webhook)",
     "status": "completed"
   },
   {
-    "content": "P1 - Trigger emails sur 5 événements (création/modif/annul/facture/rappel J-1)",
+    "content": "Backend: email Brevo de confirmation de paiement",
     "status": "completed"
   },
   {
-    "content": "P1 - APScheduler job rappel SMS J-1 à 18h00 + flag anti-doublon",
+    "content": "Frontend: bouton 'Payer en ligne' sur factures impayées + redirect",
     "status": "completed"
   },
   {
-    "content": "P1 - Tests E2E via testing_agent_v3 (25/25 backend OK)",
+    "content": "Frontend: bouton 'Verser acompte 10€' après création booking + redirect",
     "status": "completed"
   },
   {
-    "content": "P2 - Corrections bugs remontés par tests (bug /contact auth corrigé par testing agent)",
+    "content": "Frontend: gestion retour Stripe (polling status + toast)",
     "status": "completed"
+  },
+  {
+    "content": "Tests E2E via testing_agent_v3 sur l'intégration Stripe",
+    "status": "in_progress"
   }
 ]

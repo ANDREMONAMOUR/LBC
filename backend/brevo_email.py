@@ -346,3 +346,70 @@ async def send_reminder_j1_email(booking: dict, user: dict) -> Optional[dict]:
         text_content=text,
         tag="reminder_j1",
     )
+
+
+async def send_payment_confirmation_email(
+    item: dict,
+    user: dict,
+    *,
+    kind: str,  # "invoice" | "deposit"
+    amount_eur: float,
+) -> Optional[dict]:
+    """Confirm a successful Stripe payment (invoice or booking deposit)."""
+    name = _user_display_name(user)
+    if kind == "deposit":
+        subject = f"Acompte re\u00e7u \u2014 RDV {item.get('ref','')}"
+        lead = (
+            f"Merci {name}, nous avons bien re\u00e7u votre acompte de "
+            f"<strong>{amount_eur:.2f}\u00a0\u20ac</strong>. Votre cr\u00e9neau du "
+            f"<strong>{_fmt_date_fr(item.get('date',''))}</strong> "
+            f"({item.get('time_window','')}) est s\u00e9curis\u00e9."
+        )
+        body = (
+            f"<p style='margin:0 0 8px 0;'><strong>R\u00e9f\u00e9rence&nbsp;:</strong> {item.get('ref','')}</p>"
+            f"<p style='margin:0 0 8px 0;'><strong>Acompte&nbsp;:</strong> "
+            f"<span style='color:{BRAND_ACCENT};font-weight:bold;'>{amount_eur:.2f}\u00a0\u20ac</span></p>"
+            "<p style='margin:14px 0 0 0;'>Cet acompte sera d\u00e9duit de votre facture finale. "
+            "Vous pouvez annuler jusqu'\u00e0 24h avant le rendez-vous \u2014 l'acompte est alors rembours\u00e9.</p>"
+        )
+        text = (
+            f"Bonjour {name},\nNous avons bien re\u00e7u votre acompte de {amount_eur:.2f} EUR.\n"
+            f"R\u00e9f : {item.get('ref','')}\n"
+            f"Date : {_fmt_date_fr(item.get('date',''))} {item.get('time_window','')}\n"
+        )
+        tag = "payment_confirmation_deposit"
+    else:
+        ref = item.get("ref") or item.get("id", "")[:8]
+        subject = f"Paiement re\u00e7u \u2014 facture {ref}"
+        lead = (
+            f"Merci {name}, votre paiement de "
+            f"<strong>{amount_eur:.2f}\u00a0\u20ac</strong> a bien \u00e9t\u00e9 enregistr\u00e9."
+        )
+        body = (
+            f"<p style='margin:0 0 8px 0;'><strong>R\u00e9f\u00e9rence facture&nbsp;:</strong> {ref}</p>"
+            f"<p style='margin:0 0 8px 0;'><strong>Prestation&nbsp;:</strong> {item.get('label','')}</p>"
+            f"<p style='margin:0 0 8px 0;'><strong>Montant pay\u00e9&nbsp;:</strong> "
+            f"<span style='color:{BRAND_ACCENT};font-weight:bold;'>{amount_eur:.2f}\u00a0\u20ac</span></p>"
+            "<p style='margin:14px 0 0 0;'>Votre re\u00e7u Stripe vous est \u00e9galement envoy\u00e9 par e-mail. "
+            "La facture officielle reste t\u00e9l\u00e9chargeable depuis votre espace client.</p>"
+        )
+        text = (
+            f"Bonjour {name},\nPaiement re\u00e7u : {amount_eur:.2f} EUR pour la facture {ref}.\n"
+            f"Merci de votre confiance.\n"
+        )
+        tag = "payment_confirmation_invoice"
+
+    html = _shell(
+        "Paiement confirm\u00e9",
+        lead,
+        body,
+        cta_text="Voir mon espace client",
+    )
+    return await _send(
+        to_email=user.get("email", ""),
+        to_name=name,
+        subject=subject,
+        html_content=html,
+        text_content=text,
+        tag=tag,
+    )

@@ -131,3 +131,23 @@ class ContactMessage(BaseModel):
     message: str
     context: str = "lumi"
     created_at: datetime = Field(default_factory=_now)
+
+
+# ---------------- Payments ----------------
+
+class PaymentTransaction(BaseModel):
+    """Audit record for every Stripe Checkout attempt."""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=_uuid)
+    session_id: str
+    kind: str  # invoice_payment | booking_deposit
+    user_id: Optional[str] = None
+    invoice_id: Optional[str] = None
+    booking_id: Optional[str] = None
+    amount: float
+    currency: str = "eur"
+    status: str = "initiated"  # initiated | open | complete | expired | webhook_seen
+    payment_status: str = "unpaid"  # unpaid | paid | no_payment_required
+    metadata: dict = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=_now)
+    settled_at: Optional[datetime] = None
