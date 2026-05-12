@@ -1,26 +1,22 @@
 [
   {
-    "content": "Review reference screenshots to align visual design",
+    "content": "Add Brevo + JWT secrets to backend/.env; install deps (httpx, reportlab, pyjwt, motor)",
     "status": "completed"
   },
   {
-    "content": "Set up Tailwind config + fonts (Nunito/Inter) + lucide-react",
+    "content": "Build backend: models (User, OTP, Booking, Invoice), Brevo SMS service, JWT, PDF generator",
     "status": "completed"
   },
   {
-    "content": "Build single-file App.js with all views (Header, Landing, Auth OTP, Dashboard 4 tabs, Lumi Chatbot)",
+    "content": "Build backend routes: /api/auth/send-otp, verify-otp, /api/me, /api/bookings, /api/invoices, /api/invoices/{id}/pdf",
     "status": "completed"
   },
   {
-    "content": "Implement Booking Wizard (3 steps), Devis sidebar with SAP calc, Suivi, Factures",
+    "content": "Refactor frontend App.js to call backend (axios) instead of localStorage; keep 1234 bypass via backend env flag",
     "status": "completed"
   },
   {
-    "content": "Add A+ accessibility zoom, smooth animations, accessibility for seniors",
-    "status": "completed"
-  },
-  {
-    "content": "Test app end-to-end (Playwright walkthrough: landing → auth → profile → booking → suivi → factures → Lumi)",
+    "content": "Test end-to-end: send real SMS, verify, create booking, generate & download PDF invoice",
     "status": "completed"
   }
 ]
