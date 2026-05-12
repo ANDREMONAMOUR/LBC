@@ -45,7 +45,7 @@ import {
    Single-file React app. Universal demo OTP: 1234
    ========================================================= */
 
-const SVI_PHONE = "04 78 12 34 56";
+const SVI_PHONE = "06 25 55 47 02";
 const HOURLY_BASE = 80;
 const HOURLY_NET = 40;
 
@@ -221,7 +221,7 @@ const TESTIMONIALS = [
     name: "Mireille, 72 ans",
     city: "Lyon 6e",
     rating: 5,
-    quote: "Marc a retrouvé toutes mes photos et m'a montré, calmement, comment éviter les arnaques. Le crédit d'impôt a fait le reste !",
+    quote: "Jordan a retrouvé toutes mes photos et m'a montré, calmement, comment éviter les arnaques. Le crédit d'impôt a fait le reste !",
   },
   {
     name: "Jean-Claude, 68 ans",
@@ -991,7 +991,7 @@ const Lumi = ({ open, setOpen, isAuthed, onContactMarc }) => {
               <div className="p-4 max-h-[70vh] overflow-y-auto">
                 {view === "menu" && (
                   <div className="space-y-2">
-                    <p className="text-ink-600 text-sm mb-2">Bonjour ! Choisissez une question ou contactez Marc directement.</p>
+                    <p className="text-ink-600 text-sm mb-2">Bonjour ! Choisissez une question ou contactez Jordan directement.</p>
                     {FAQ.map((f, i) => (
                       <button key={i} data-testid={`faq-${i}`} onClick={() => { setActiveFaq(i); setView("answer"); }}
                         className="w-full text-left rounded-xl border-2 border-ink-200 px-4 py-3 hover:border-brandPurple transition-colors">
@@ -1003,10 +1003,10 @@ const Lumi = ({ open, setOpen, isAuthed, onContactMarc }) => {
                       className={cx("w-full mt-2 text-left rounded-xl border-2 px-4 py-3 transition-colors",
                         isAuthed ? "border-brandCyan/40 bg-brandCyan-soft hover:border-brandCyan" : "border-ink-200 bg-ink-50 opacity-60 cursor-not-allowed")}>
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-brandCyan">Ma question n'est pas dans la liste (Contacter Marc)</span>
+                        <span className="font-bold text-brandCyan">Ma question n'est pas dans la liste (Contacter Jordan)</span>
                         <ArrowRight className="w-4 h-4 text-brandCyan" />
                       </div>
-                      {!isAuthed && <p className="mt-1 text-xs text-ink-500">Connectez-vous pour envoyer un message à Marc.</p>}
+                      {!isAuthed && <p className="mt-1 text-xs text-ink-500">Connectez-vous pour envoyer un message à Jordan.</p>}
                     </button>
                   </div>
                 )}
@@ -1017,7 +1017,7 @@ const Lumi = ({ open, setOpen, isAuthed, onContactMarc }) => {
                     <p className="mt-2 text-ink-700 leading-relaxed">{FAQ[activeFaq].a}</p>
                     {isAuthed && (
                       <button onClick={() => setView("contact")} className="mt-4 inline-flex items-center gap-2 text-brandCyan font-bold hover:text-brandPurple">
-                        <HelpCircle className="w-4 h-4" />Cela ne répond pas — contacter Marc
+                        <HelpCircle className="w-4 h-4" />Cela ne répond pas — contacter Jordan
                       </button>
                     )}
                   </div>
@@ -1025,8 +1025,8 @@ const Lumi = ({ open, setOpen, isAuthed, onContactMarc }) => {
                 {view === "contact" && (
                   <div className="animate-fade-in space-y-4">
                     <button onClick={() => setView("menu")} className="text-sm font-bold text-ink-600 hover:text-ink-900 inline-flex items-center gap-1"><ChevronLeft className="w-4 h-4" /> Retour</button>
-                    <div><h4 className="font-extrabold text-ink-900 text-lg">Contacter Marc</h4><p className="text-sm text-ink-600 mt-1">Décrivez votre besoin, Marc vous répond sous 24h ouvrées.</p></div>
-                    <TextArea data-testid="lumi-message-input" placeholder="Bonjour Marc, …" value={message} onChange={(e) => setMessage(e.target.value)} />
+                    <div><h4 className="font-extrabold text-ink-900 text-lg">Contacter Jordan</h4><p className="text-sm text-ink-600 mt-1">Décrivez votre besoin, Jordan vous répond sous 24h ouvrées.</p></div>
+                    <TextArea data-testid="lumi-message-input" placeholder="Bonjour Jordan, …" value={message} onChange={(e) => setMessage(e.target.value)} />
                     <PrimaryButton testId="lumi-send-btn" full icon={Send} disabled={message.trim().length < 5} loading={sending} onClick={send}>Envoyer mon message</PrimaryButton>
                     <p className="text-xs text-ink-500 text-center">Ou appelez directement le {SVI_PHONE}</p>
                   </div>
@@ -1035,7 +1035,7 @@ const Lumi = ({ open, setOpen, isAuthed, onContactMarc }) => {
                   <div className="animate-fade-in text-center py-6">
                     <div className="w-14 h-14 rounded-full bg-sapGreen-soft text-sapGreen mx-auto flex items-center justify-center"><CheckCircle2 className="w-8 h-8" /></div>
                     <h4 className="mt-3 text-xl font-extrabold text-ink-900">Message envoyé !</h4>
-                    <p className="mt-1 text-ink-600">Marc a bien reçu votre demande. Réponse sous 24h ouvrées.</p>
+                    <p className="mt-1 text-ink-600">Jordan a bien reçu votre demande. Réponse sous 24h ouvrées.</p>
                     <button onClick={() => setView("menu")} className="mt-4 text-brandCyan font-bold hover:text-brandPurple">Revenir au menu</button>
                   </div>
                 )}
@@ -1234,7 +1234,7 @@ function App() {
             <h5 className="text-sm uppercase font-bold text-ink-500 tracking-wide">Assistance &amp; Contact</h5>
             <ul className="mt-2 space-y-1 text-ink-700">
               <li className="inline-flex items-center gap-2"><Phone className="w-4 h-4 text-brandCyan" /> {SVI_PHONE}</li>
-              <li className="inline-flex items-center gap-2"><Mail className="w-4 h-4 text-brandCyan" /> contact@lebonclic.fr</li>
+              <li className="inline-flex items-center gap-2"><Mail className="w-4 h-4 text-brandCyan" /> contact@lebonclic.tech</li>
               <li className="inline-flex items-center gap-2"><Home className="w-4 h-4 text-brandCyan" /> Lyon &amp; Métropole</li>
             </ul>
           </div>

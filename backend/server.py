@@ -13,7 +13,7 @@ Routes:
   GET    /api/invoices                 (list mine)
   POST   /api/invoices/{id}/pay
   GET    /api/invoices/{id}/pdf        (download PDF)
-  POST   /api/contact                  (contact Marc — stored in DB)
+  POST   /api/contact                  (contact Jordan — stored in DB)
   GET    /api/health
 """
 import logging
@@ -398,7 +398,7 @@ async def download_invoice_pdf(invoice_id: str, uid: str = Depends(current_user_
     )
 
 
-# ============ Contact (Lumi → Marc) ============
+# ============ Contact (Lumi → Jordan) ============
 
 @api.post("/contact")
 async def contact_marc(
@@ -414,7 +414,7 @@ async def contact_marc(
     ).model_dump()
     msg["created_at"] = msg["created_at"].isoformat()
     await db.contact_messages.insert_one(msg)
-    return {"status": "ok", "message": "Marc vous répond sous 24h ouvrées."}
+    return {"status": "ok", "message": "Jordan vous répond sous 24h ouvrées."}
 
 
 # ---- Mount routes ----
