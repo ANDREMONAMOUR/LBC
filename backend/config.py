@@ -22,7 +22,7 @@ JWT_EXPIRY_HOURS = int(os.environ.get("JWT_EXPIRY_HOURS", "720"))
 
 # OTP
 OTP_EXPIRY_SECONDS = int(os.environ.get("OTP_EXPIRY_SECONDS", "600"))
-OTP_BYPASS_CODE = os.environ.get("OTP_BYPASS_CODE", "1234")  # universal demo code
+OTP_BYPASS_CODE = os.environ.get("OTP_BYPASS_CODE", "")  # empty = bypass disabled
 SMS_DEV_MODE = os.environ.get("SMS_DEV_MODE", "false").lower() in {"1", "true", "yes"}
 
 # Business
