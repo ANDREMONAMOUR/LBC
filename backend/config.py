@@ -41,3 +41,12 @@ STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 # Fixed deposit amount when a customer wants to secure their booking (EUR)
 BOOKING_DEPOSIT_EUR = float(os.environ.get("BOOKING_DEPOSIT_EUR", "10.0"))
+
+# Airtable (CRM mirror — best-effort sync)
+AIRTABLE_PAT = os.environ.get("AIRTABLE_PAT", "")
+AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID", "")
+AIRTABLE_TABLE_CLIENTS = os.environ.get("AIRTABLE_TABLE_CLIENTS", "Clients")
+AIRTABLE_TABLE_CATALOGUE = os.environ.get("AIRTABLE_TABLE_CATALOGUE", "Catalogue")
+AIRTABLE_TABLE_INTERVENTIONS = os.environ.get("AIRTABLE_TABLE_INTERVENTIONS", "Interventions")
+AIRTABLE_TABLE_FACTURES = os.environ.get("AIRTABLE_TABLE_FACTURES", "Factures")
+AIRTABLE_SYNC_ENABLED = os.environ.get("AIRTABLE_SYNC_ENABLED", "false").lower() in {"1", "true", "yes"}
