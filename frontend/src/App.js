@@ -755,12 +755,18 @@ const AuthFlow = ({ onCancel, onAuthenticated }) => {
       setError("Merci de saisir un numéro de mobile français à 10 chiffres (06 ou 07)."); return;
     }
     setError(""); setLoading(true);
-    try {
-      const { data } = await api.post("/auth/send-otp", { phone: digits });
-      setPhoneDigits(digits); setMaskedPhone(data.masked_phone); setDevCode(data.dev_code || null);
-      setStep("code"); setTimeout(() => codeRefs.current[0]?.focus(), 50);
-    } catch (e) { setError(e.response?.data?.detail || "Erreur lors de l'envoi du SMS."); }
-    finally { setLoading(false); }
+    // ── Mode démo (maquette) : aucun appel backend, aucun SMS réel envoyé.
+    // On simule simplement l'envoi pour fluidifier le parcours, puis on
+    // passe à l'étape de saisie du code (où "1234" est accepté par le backend).
+    const masked = `${digits.slice(0, 2)} ** ** ** ${digits.slice(-2)}`;
+    setTimeout(() => {
+      setPhoneDigits(digits);
+      setMaskedPhone(masked);
+      setDevCode(null);
+      setStep("code");
+      setLoading(false);
+      setTimeout(() => codeRefs.current[0]?.focus(), 50);
+    }, 600);
   };
   const submitCode = async () => {
     const entered = code.join("");
@@ -807,13 +813,13 @@ const AuthFlow = ({ onCancel, onAuthenticated }) => {
             </h2>
           </div>
           <SpeakButton className="ml-auto"
-            text={step === "phone" ? "Connexion sécurisée par SMS. Aucun mot de passe à retenir." :
-                  step === "code" ? "Saisissez votre code à 4 chiffres. Pour la démo, le code 1234 fonctionne toujours." :
+            text={step === "phone" ? "Connexion en mode démo. Aucun SMS n'est envoyé. Saisissez un numéro de mobile français pour continuer." :
+                  step === "code" ? "Saisissez le code de démonstration mille deux cent trente-quatre pour continuer." :
                   "Création de votre dossier. Veuillez compléter prénom, nom, e-mail, adresse postale et précisions d'accès."} />
         </div>
         <p className="text-ink-600 mt-1 mb-6 text-base md:text-lg">
-          {step === "phone" && "Aucun mot de passe à retenir. Nous vous envoyons un code à 4 chiffres par SMS."}
-          {step === "code" && `Un code à 4 chiffres a été envoyé au ${maskedPhone}. Pour la démo, le code 1234 fonctionne toujours.`}
+          {step === "phone" && "Mode maquette — aucun SMS n'est envoyé. Saisissez un numéro de mobile français pour accéder à la suite du parcours."}
+          {step === "code" && `Saisissez le code de démonstration ci-dessous. Aucun SMS réel n'a été envoyé au ${maskedPhone}.`}
           {step === "profile" && "Pour éditer une facture conforme au crédit d'impôt et faciliter mon déplacement."}
         </p>
         {error && (
@@ -827,7 +833,7 @@ const AuthFlow = ({ onCancel, onAuthenticated }) => {
               <TextInput data-testid="auth-phone-input" inputMode="numeric" placeholder="06 12 34 56 78"
                 value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} />
             </Field>
-            <PrimaryButton testId="auth-send-code-btn" full onClick={submitPhone} icon={Send} loading={loading}>Recevoir mon code par SMS</PrimaryButton>
+            <PrimaryButton testId="auth-send-code-btn" full onClick={submitPhone} icon={ArrowRight} loading={loading}>Continuer (mode démo)</PrimaryButton>
             <p className="text-xs text-ink-500 text-center">En continuant, vous acceptez nos conditions et notre politique de confidentialité.</p>
           </div>
         )}
