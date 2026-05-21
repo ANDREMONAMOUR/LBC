@@ -755,18 +755,23 @@ const AuthFlow = ({ onCancel, onAuthenticated }) => {
       setError("Merci de saisir un numéro de mobile français à 10 chiffres (06 ou 07)."); return;
     }
     setError(""); setLoading(true);
-    // ── Mode démo (maquette) : aucun appel backend, aucun SMS réel envoyé.
-    // On simule simplement l'envoi pour fluidifier le parcours, puis on
-    // passe à l'étape de saisie du code (où "1234" est accepté par le backend).
-    const masked = `${digits.slice(0, 2)} ** ** ** ${digits.slice(-2)}`;
-    setTimeout(() => {
+    // ── Mode démo (maquette) : auth one-shot, pas d'OTP.
+    try {
+      const { data } = await api.post("/auth/demo-auth", { phone: digits });
+      localStorage.setItem(STORAGE_TOKEN, data.token);
+      localStorage.setItem(STORAGE_USER, JSON.stringify(data.user));
       setPhoneDigits(digits);
-      setMaskedPhone(masked);
-      setDevCode(null);
-      setStep("code");
+      if (data.is_new_user || !data.user.profile_complete) {
+        setProfile((p) => ({ ...p, email: data.user.email || "", first_name: data.user.first_name || "", last_name: data.user.last_name || "", address: data.user.address || "", access_details: data.user.access_details || "" }));
+        setStep("profile");
+      } else {
+        onAuthenticated(data.user);
+      }
+    } catch (e) {
+      setError(e.response?.data?.detail || "Erreur lors de la connexion.");
+    } finally {
       setLoading(false);
-      setTimeout(() => codeRefs.current[0]?.focus(), 50);
-    }, 600);
+    }
   };
   const submitCode = async () => {
     const entered = code.join("");
@@ -807,18 +812,18 @@ const AuthFlow = ({ onCancel, onAuthenticated }) => {
           <div>
             <div className="text-sm font-bold text-ink-500">{step === "phone" ? "Étape 1/2" : step === "code" ? "Étape 2/2" : "Création de votre dossier"}</div>
             <h2 className="text-2xl md:text-3xl font-extrabold text-ink-900">
-              {step === "phone" && "Connexion sécurisée par SMS"}
-              {step === "code" && "Saisissez votre code"}
+              {step === "phone" && "Connexion (mode démo)"}
+              {step === "code" && "Saisissez le code de démo"}
               {step === "profile" && "Quelques informations utiles"}
             </h2>
           </div>
           <SpeakButton className="ml-auto"
-            text={step === "phone" ? "Connexion en mode démo. Aucun SMS n'est envoyé. Saisissez un numéro de mobile français pour continuer." :
+            text={step === "phone" ? "Connexion en mode démo. Aucun SMS, aucun code. Saisissez un numéro de mobile français pour accéder directement à la suite." :
                   step === "code" ? "Saisissez le code de démonstration mille deux cent trente-quatre pour continuer." :
                   "Création de votre dossier. Veuillez compléter prénom, nom, e-mail, adresse postale et précisions d'accès."} />
         </div>
         <p className="text-ink-600 mt-1 mb-6 text-base md:text-lg">
-          {step === "phone" && "Mode maquette — aucun SMS n'est envoyé. Saisissez un numéro de mobile français pour accéder à la suite du parcours."}
+          {step === "phone" && "Mode maquette — aucun SMS, aucun code à saisir. Renseignez juste votre numéro pour accéder à la suite."}
           {step === "code" && `Saisissez le code de démonstration ci-dessous. Aucun SMS réel n'a été envoyé au ${maskedPhone}.`}
           {step === "profile" && "Pour éditer une facture conforme au crédit d'impôt et faciliter mon déplacement."}
         </p>
@@ -829,11 +834,11 @@ const AuthFlow = ({ onCancel, onAuthenticated }) => {
         {step === "phone" && (
           <div className="space-y-5">
             <Field label="Numéro de mobile" required hint="Format : 06 12 34 56 78"
-              help="Saisissez le numéro de portable sur lequel vous recevrez le code de connexion à 4 chiffres.">
+              help="Saisissez un numéro de portable français pour accéder directement à la suite du parcours.">
               <TextInput data-testid="auth-phone-input" inputMode="numeric" placeholder="06 12 34 56 78"
                 value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} />
             </Field>
-            <PrimaryButton testId="auth-send-code-btn" full onClick={submitPhone} icon={ArrowRight} loading={loading}>Continuer (mode démo)</PrimaryButton>
+            <PrimaryButton testId="auth-send-code-btn" full onClick={submitPhone} icon={ArrowRight} loading={loading}>Accéder à mon espace (démo)</PrimaryButton>
             <p className="text-xs text-ink-500 text-center">En continuant, vous acceptez nos conditions et notre politique de confidentialité.</p>
           </div>
         )}

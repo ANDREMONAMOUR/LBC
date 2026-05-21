@@ -260,6 +260,28 @@ async def verify_otp(body: VerifyOtpRequest):
     )
 
 
+@api.post("/auth/demo-auth", response_model=AuthResponse)
+async def demo_auth(body: SendOtpRequest):
+    """
+    Direct one-shot auth for maquette/démo mode (no OTP, no SMS).
+    Gated by SMS_DEV_MODE=true so it cannot be triggered in production.
+    """
+    if not config.SMS_DEV_MODE:
+        raise HTTPException(
+            status_code=403,
+            detail="Mode démo désactivé sur cet environnement.",
+        )
+    phone = _normalize_phone(body.phone)
+    user, is_new = await _ensure_user(phone)
+    token = create_token(user["id"], phone)
+    return AuthResponse(
+        status="ok",
+        token=token,
+        is_new_user=is_new or not user.get("profile_complete", False),
+        user=User(**user),
+    )
+
+
 @api.get("/me", response_model=User)
 async def get_me(uid: str = Depends(current_user_id)):
     user = await db.users.find_one({"id": uid}, {"_id": 0})
