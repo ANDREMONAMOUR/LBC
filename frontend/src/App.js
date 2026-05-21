@@ -449,8 +449,10 @@ const HowItWorks = () => {
   );
 };
 
+const GOOGLE_REVIEWS_URL = process.env.REACT_APP_GOOGLE_REVIEWS_URL || "https://www.google.com/search?q=Le+Bon+Clic+Lyon";
+
 const GoogleReviews = () => (
-  <a href="https://www.google.com/search?q=Le+Bon+Clic+Lyon" target="_blank" rel="noopener noreferrer"
+  <a data-testid="google-reviews-link" href={GOOGLE_REVIEWS_URL} target="_blank" rel="noopener noreferrer"
     className="inline-flex items-center gap-3 bg-white border-2 border-ink-200 rounded-2xl px-4 py-3 hover:border-ink-300 transition-colors shadow-soft">
     <svg viewBox="0 0 48 48" className="w-7 h-7" aria-hidden>
       <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8a12 12 0 110-24c3 0 5.8 1.1 7.9 3l5.7-5.7C34 5.4 29.3 3.5 24 3.5 12.8 3.5 3.5 12.8 3.5 24S12.8 44.5 24 44.5 44.5 35.2 44.5 24c0-1.2-.1-2.4-.4-3.5z" />

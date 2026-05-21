@@ -51,8 +51,18 @@ SPA React 19 + FastAPI + MongoDB, avec intégrations Brevo (SMS/Email), Stripe (
 - ✅ Dépendances installées (pip + yarn)
 - ✅ `.env` backend/frontend créés et peuplés
 - ✅ Clés Stripe LIVE + Brevo + Airtable intégrées
-- ✅ Fix `load_dotenv(override=True)` dans `backend/config.py` pour éviter qu'une variable système écrase la clé Stripe
+- ✅ Fix `load_dotenv(override=True)` dans `backend/config.py`
 - ✅ Smoke test passé : `/api/health`, OTP send/verify (bypass 1234), landing page rendue
+
+### 2026-05-21 — Enhancements
+- ✅ Lien Google Reviews rendu configurable via `REACT_APP_GOOGLE_REVIEWS_URL` (frontend/.env)
+  - Fichier `App.js` : composant `GoogleReviews` utilise `process.env.REACT_APP_GOOGLE_REVIEWS_URL` avec fallback générique
+  - `data-testid="google-reviews-link"` ajouté
+- ✅ Flux SMS+Email de rappel J-1 vérifié bout-en-bout
+  - Création booking pour demain → `POST /api/admin/run-reminders-j1` → `{"status":"ok","notified":1}`
+  - Logs scheduler : SMS + Email préparés correctement (mode DEV car `SMS_DEV_MODE=true`)
+  - Cron quotidien actif : 18h00 Europe/Paris
+  - Pour activation en prod : passer `SMS_DEV_MODE=false` dans `backend/.env`
 
 ## Backlog (P0 → P2)
 - **P1** : Tester le flux Brevo réel (envoi SMS sur numéro français vérifié + envoi email)
