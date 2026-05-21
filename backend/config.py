@@ -50,3 +50,9 @@ AIRTABLE_TABLE_CATALOGUE = os.environ.get("AIRTABLE_TABLE_CATALOGUE", "Catalogue
 AIRTABLE_TABLE_INTERVENTIONS = os.environ.get("AIRTABLE_TABLE_INTERVENTIONS", "Interventions")
 AIRTABLE_TABLE_FACTURES = os.environ.get("AIRTABLE_TABLE_FACTURES", "Factures")
 AIRTABLE_SYNC_ENABLED = os.environ.get("AIRTABLE_SYNC_ENABLED", "false").lower() in {"1", "true", "yes"}
+
+# Admin (CRM seed)
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+ADMIN_FIRST_NAME = os.environ.get("ADMIN_FIRST_NAME", "Jordan")
+ADMIN_LAST_NAME = os.environ.get("ADMIN_LAST_NAME", "")

@@ -25,7 +25,7 @@ from typing import Optional, List
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
 from fastapi.responses import Response
-from motor.motor_asyncio import AsyncIOMotorClient
+
 from starlette.middleware.cors import CORSMiddleware
 
 import config
@@ -47,7 +47,7 @@ from brevo_email import (
 from pdf_invoice import build_invoice_pdf
 from scheduler import start_scheduler, shutdown_scheduler, send_j1_reminders
 import payments as payments_module
-import airtable_sync
+from admin_router import admin_router, seed_admin_if_needed
 
 
 logging.basicConfig(
@@ -57,8 +57,8 @@ logging.basicConfig(
 log = logging.getLogger("lebonclic")
 
 # ---- Mongo ----
-mongo_client = AsyncIOMotorClient(config.MONGO_URL)
-db = mongo_client[config.DB_NAME]
+# MongoDB
+from database import mongo_client, db  # noqa: F401
 
 # ---- App ----
 app = FastAPI(title="Le Bon Clic API", version="1.0.0")
@@ -164,8 +164,6 @@ async def _seed_demo_invoices(user_id: str, user_phone: str):
         user_doc = await db.users.find_one({"id": user_id}, {"_id": 0})
         if user_doc:
             _fire(send_invoice_ready_email(inv, user_doc))
-        # Mirror to Airtable
-        _fire(airtable_sync.push_invoice(db, inv))
 
 
 # ============ Health ============
@@ -310,8 +308,6 @@ async def complete_profile(body: UserProfileIn, uid: str = Depends(current_user_
         raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
     # Seed demo invoices on first completion
     await _seed_demo_invoices(uid, res["phone"])
-    # Mirror to Airtable (best-effort)
-    _fire(airtable_sync.push_user(db, res))
     return User(**res)
 
 
@@ -364,8 +360,6 @@ async def create_booking(body: BookingCreate, uid: str = Depends(current_user_id
     booking.pop("_id", None)
     # Confirmation email (fire-and-forget)
     _fire(send_booking_created_email(booking, user))
-    # Mirror to Airtable (Client + Intervention)
-    _fire(airtable_sync.push_booking(db, booking, user))
     return Booking(**booking)
 
 
@@ -414,7 +408,6 @@ async def cancel_booking(booking_id: str, uid: str = Depends(current_user_id)):
     user = await db.users.find_one({"id": uid}, {"_id": 0})
     if user:
         _fire(send_booking_cancelled_email(res, user))
-        _fire(airtable_sync.push_booking(db, res, user))
     return Booking(**res)
 
 
@@ -459,7 +452,6 @@ async def reschedule_booking(
     user = await db.users.find_one({"id": uid}, {"_id": 0})
     if user:
         _fire(send_booking_updated_email(res, user))
-        _fire(airtable_sync.push_booking(db, res, user))
     return Booking(**res)
 
 
@@ -482,7 +474,6 @@ async def pay_invoice(invoice_id: str, uid: str = Depends(current_user_id)):
     )
     if not res:
         raise HTTPException(status_code=404, detail="Facture introuvable.")
-    _fire(airtable_sync.push_invoice(db, res))
     return Invoice(**res)
 
 
@@ -541,6 +532,7 @@ async def admin_run_reminders_j1():
 
 
 # ---- Mount routes ----
+api.include_router(admin_router)
 app.include_router(api)
 
 # Stripe payments router (uses closures over db)
@@ -573,6 +565,11 @@ async def startup():
         start_scheduler(db)
     except Exception as e:
         log.warning(f"Scheduler start failed: {e}")
+    # Seed first admin if collection empty
+    try:
+        await seed_admin_if_needed()
+    except Exception as e:
+        log.warning(f"Admin seed failed: {e}")
 
 
 @app.on_event("shutdown")

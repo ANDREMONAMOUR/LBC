@@ -117,6 +117,101 @@ class InvoiceListResponse(BaseModel):
     invoices: List[Invoice]
 
 
+# ---------------- Admin (CRM) ----------------
+
+class AdminUser(BaseModel):
+    """Admin/staff account, separate from clients (User)."""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=_uuid)
+    email: str
+    password_hash: str = ""  # bcrypt — never returned to client
+    first_name: str = ""
+    last_name: str = ""
+    role: str = "admin"  # admin | accountant | operator (future)
+    created_at: datetime = Field(default_factory=_now)
+    last_login_at: Optional[datetime] = None
+
+
+class AdminPublic(BaseModel):
+    """Safe AdminUser representation (no password_hash)."""
+    id: str
+    email: str
+    first_name: str = ""
+    last_name: str = ""
+    role: str = "admin"
+    last_login_at: Optional[datetime] = None
+
+
+class AdminLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AdminAuthResponse(BaseModel):
+    status: str = "ok"
+    token: str
+    admin: AdminPublic
+
+
+class AdminChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class AdminClientUpdate(BaseModel):
+    """Patch payload for admin to update a client profile/CRM fields."""
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    access_details: Optional[str] = None
+    admin_notes: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class AdminBookingCreate(BaseModel):
+    """Admin creates a booking manually (e.g. phone call)."""
+    user_id: Optional[str] = None  # if existing client
+    phone: Optional[str] = None    # else, create/find user from phone
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    access_details: Optional[str] = None
+    device_id: str
+    symptom: str
+    date: str
+    time_window: str
+
+
+class AdminBookingUpdate(BaseModel):
+    date: Optional[str] = None
+    time_window: Optional[str] = None
+    status: Optional[str] = None  # confirmed | cancelled | completed | in_progress
+    field_notes: Optional[str] = None
+    materials_used: Optional[List[str]] = None
+    actual_hours: Optional[float] = None
+
+
+class AdminInvoiceCreate(BaseModel):
+    user_id: str
+    booking_id: Optional[str] = None
+    label: str
+    date: str  # YYYY-MM-DD
+    hours: float
+    base_total: Optional[float] = None  # auto = hours * 80 if missing
+    net_total: Optional[float] = None   # auto = hours * 40 if missing
+
+
+class AdminInvoiceUpdate(BaseModel):
+    label: Optional[str] = None
+    date: Optional[str] = None
+    hours: Optional[float] = None
+    base_total: Optional[float] = None
+    net_total: Optional[float] = None
+    paid: Optional[bool] = None
+
+
 # ---------------- Chatbot ----------------
 
 class ContactMessageIn(BaseModel):
