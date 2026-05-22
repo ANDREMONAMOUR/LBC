@@ -48,6 +48,7 @@ from pdf_invoice import build_invoice_pdf
 from scheduler import start_scheduler, shutdown_scheduler, send_j1_reminders
 import payments as payments_module
 from admin_router import admin_router, seed_admin_if_needed
+import brevo_webhook as brevo_webhook_module
 
 
 logging.basicConfig(
@@ -537,6 +538,9 @@ app.include_router(api)
 
 # Stripe payments router (uses closures over db)
 payments_module.attach(app, db)
+
+# Brevo webhook receivers (email + sms event tracking)
+brevo_webhook_module.attach(app, db)
 
 app.add_middleware(
     CORSMiddleware,

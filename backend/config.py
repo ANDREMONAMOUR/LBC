@@ -51,6 +51,9 @@ AIRTABLE_TABLE_INTERVENTIONS = os.environ.get("AIRTABLE_TABLE_INTERVENTIONS", "I
 AIRTABLE_TABLE_FACTURES = os.environ.get("AIRTABLE_TABLE_FACTURES", "Factures")
 AIRTABLE_SYNC_ENABLED = os.environ.get("AIRTABLE_SYNC_ENABLED", "false").lower() in {"1", "true", "yes"}
 
+# Brevo Webhook (incoming events from Brevo: email + SMS)
+BREVO_WEBHOOK_SECRET = os.environ.get("BREVO_WEBHOOK_SECRET", "")
+
 # Admin (CRM seed)
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
