@@ -362,6 +362,171 @@ async def admin_update_booking(
     return Booking(**res)
 
 
+# ---------------------- BOOKING TIMELINE (Brevo events + internal) ----------------------
+
+def _to_e164_fr(phone_digits: str) -> str:
+    """Mirror brevo_sms.to_e164_fr — convert 10-digit FR phone to +33 E.164."""
+    digits = "".join(ch for ch in (phone_digits or "") if ch.isdigit())
+    if digits.startswith("33") and len(digits) == 11:
+        return "+" + digits
+    if digits.startswith("0") and len(digits) == 10:
+        return "+33" + digits[1:]
+    return "+" + digits if digits else ""
+
+
+@admin_router.get("/bookings/{booking_id}/timeline")
+async def admin_booking_timeline(
+    booking_id: str,
+    _admin_id: str = Depends(admin_auth.current_admin_id),
+):
+    """Return a unified timeline of internal events + Brevo email/SMS events
+    related to this booking.
+
+    Matching strategy for Brevo events:
+      - email events where event.email == user.email
+      - sms events where event.msisdn == E.164(user.phone)
+      - filtered from booking.created_at minus 1h, to now
+    """
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation introuvable.")
+    user = await db.users.find_one({"id": booking["user_id"]}, {"_id": 0}) or {}
+
+    user_email = (user.get("email") or "").strip().lower()
+    user_msisdn = _to_e164_fr(user.get("phone") or "")
+
+    items: list[dict] = []
+
+    # 1) Internal markers
+    created = booking.get("created_at")
+    if created:
+        items.append({
+            "ts": created.isoformat() if hasattr(created, "isoformat") else str(created),
+            "kind": "internal",
+            "channel": "system",
+            "event": "booking_created",
+            "label": f"Réservation créée — {booking.get('ref','')}",
+        })
+    if booking.get("reminder_j1_sent_at"):
+        items.append({
+            "ts": booking["reminder_j1_sent_at"],
+            "kind": "internal",
+            "channel": "system",
+            "event": "reminder_j1_dispatched",
+            "label": "Rappel J-1 envoyé (SMS + Email)",
+            "detail": {
+                "sms_ok": bool(booking.get("reminder_j1_sms_ok")),
+                "email_ok": bool(booking.get("reminder_j1_email_ok")),
+            },
+        })
+    if booking.get("cancelled_at"):
+        ca = booking["cancelled_at"]
+        items.append({
+            "ts": ca.isoformat() if hasattr(ca, "isoformat") else str(ca),
+            "kind": "internal",
+            "channel": "system",
+            "event": "booking_cancelled",
+            "label": "Réservation annulée",
+        })
+    if booking.get("completed_at"):
+        ca = booking["completed_at"]
+        items.append({
+            "ts": ca.isoformat() if hasattr(ca, "isoformat") else str(ca),
+            "kind": "internal",
+            "channel": "system",
+            "event": "booking_completed",
+            "label": "Intervention terminée",
+        })
+
+    # 2) Brevo events (from `created_at - 1h` to now)
+    cutoff = None
+    if created and hasattr(created, "isoformat"):
+        cutoff = created - timedelta(hours=1)
+
+    or_clauses = []
+    if user_email:
+        or_clauses.append({"channel": "email", "email": user_email})
+    if user_msisdn:
+        or_clauses.append({"channel": "sms", "msisdn": user_msisdn})
+
+    if or_clauses:
+        query = {"$or": or_clauses}
+        if cutoff is not None:
+            query["received_at"] = {"$gte": cutoff}
+        cursor = db.brevo_events.find(query, {"_id": 0, "raw": 0}).sort("received_at", 1).limit(200)
+        async for ev in cursor:
+            recv = ev.get("received_at")
+            items.append({
+                "ts": recv.isoformat() if hasattr(recv, "isoformat") else str(recv),
+                "kind": "brevo",
+                "channel": ev.get("channel"),
+                "event": ev.get("event"),
+                "label": _brevo_event_label(ev),
+                "detail": {
+                    "message_id": ev.get("message_id"),
+                    "tag": ev.get("tag"),
+                    "email": ev.get("email"),
+                    "msisdn": ev.get("msisdn"),
+                    "subject": ev.get("subject"),
+                },
+            })
+
+    items.sort(key=lambda x: x.get("ts") or "")
+
+    return {
+        "booking": {
+            "id": booking.get("id"),
+            "ref": booking.get("ref"),
+            "status": booking.get("status"),
+            "date": booking.get("date"),
+            "time_window": booking.get("time_window"),
+        },
+        "user": {
+            "email": user_email,
+            "phone": user.get("phone"),
+        },
+        "items": items,
+    }
+
+
+_BREVO_EVENT_FR_EMAIL = {
+    "delivered":     "Email livré",
+    "opened":        "Email ouvert",
+    "unique_opened": "Email ouvert (unique)",
+    "click":         "Lien cliqué dans l'email",
+    "clicked":       "Lien cliqué dans l'email",
+    "hard_bounce":   "Email rejeté (hard bounce)",
+    "soft_bounce":   "Email rejeté temporairement",
+    "blocked":       "Email bloqué",
+    "complaint":     "Plainte spam",
+    "spam":          "Marqué comme spam",
+    "deferred":      "Email différé",
+    "unsubscribed":  "Désabonnement email",
+    "sent":          "Email envoyé",
+}
+
+_BREVO_EVENT_FR_SMS = {
+    "delivered":      "SMS livré",
+    "sent":           "SMS envoyé",
+    "hardBounce":     "SMS rejeté définitivement",
+    "softBounce":     "SMS rejeté temporairement",
+    "hard_bounce":    "SMS rejeté définitivement",
+    "soft_bounce":    "SMS rejeté temporairement",
+    "unsubscription": "Désabonnement SMS (STOP)",
+    "blocked":        "SMS bloqué",
+}
+
+
+def _brevo_event_label(ev: dict) -> str:
+    channel = ev.get("channel")
+    event = ev.get("event") or "unknown"
+    if channel == "sms":
+        name = _BREVO_EVENT_FR_SMS.get(event, event)
+        return f"📱 {name}"
+    name = _BREVO_EVENT_FR_EMAIL.get(event, event)
+    return f"📧 {name}"
+
+
 # ---------------------- INVOICES ----------------------
 
 @admin_router.get("/invoices")

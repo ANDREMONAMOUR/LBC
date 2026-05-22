@@ -11,6 +11,7 @@ import {
   LayoutDashboard, Users, Calendar, Receipt, LogOut, Search, Plus, Edit3,
   Check, X, Loader2, ChevronLeft, RefreshCw, Phone, Mail, MapPin, Clock,
   Wallet, BadgeCheck, AlertCircle, Tag, Save, Trash2, ArrowUpRight, Menu,
+  Activity, Send, MailCheck, MessageSquare,
 } from "lucide-react";
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL || "";
@@ -592,6 +593,75 @@ const AdminBookings = ({ notify }) => {
   );
 };
 
+const BookingTimeline = ({ bookingId }) => {
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await adminApi.get(`/admin/bookings/${bookingId}/timeline`);
+        if (!cancelled) setItems(data.items || []);
+      } catch (e) {
+        if (!cancelled) setError(e.response?.data?.detail || "Erreur de chargement.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [bookingId]);
+
+  if (items === null && !error) {
+    return <div className="py-4 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-cyan-600"/></div>;
+  }
+  if (error) {
+    return <div className="text-sm text-rose-600">{error}</div>;
+  }
+  if (items.length === 0) {
+    return <div className="text-sm text-slate-500 italic">Aucun événement pour cette réservation.</div>;
+  }
+
+  const eventStyle = (kind, channel, event) => {
+    if (kind === "internal") return { dot: "bg-slate-400", text: "text-slate-700" };
+    if (channel === "sms") {
+      if (event && event.toLowerCase().includes("bounce")) return { dot: "bg-rose-500", text: "text-rose-700" };
+      return { dot: "bg-emerald-500", text: "text-emerald-700" };
+    }
+    if (channel === "email") {
+      if (event === "hard_bounce" || event === "blocked" || event === "complaint" || event === "spam") return { dot: "bg-rose-500", text: "text-rose-700" };
+      if (event === "soft_bounce" || event === "deferred") return { dot: "bg-amber-500", text: "text-amber-700" };
+      if (event === "opened" || event === "unique_opened" || event === "click" || event === "clicked") return { dot: "bg-cyan-500", text: "text-cyan-700" };
+      return { dot: "bg-emerald-500", text: "text-emerald-700" };
+    }
+    return { dot: "bg-slate-400", text: "text-slate-700" };
+  };
+
+  const fmt = (ts) => {
+    try {
+      const d = new Date(ts);
+      return d.toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    } catch { return ts; }
+  };
+
+  return (
+    <div className="relative pl-5 border-l-2 border-slate-200 space-y-3 py-1">
+      {items.map((it, idx) => {
+        const st = eventStyle(it.kind, it.channel, it.event);
+        return (
+          <div key={idx} className="relative" data-testid={`timeline-item-${idx}`}>
+            <span className={`absolute -left-[27px] top-1 w-3 h-3 rounded-full ring-2 ring-white ${st.dot}`} />
+            <div className={`text-sm font-medium ${st.text}`}>{it.label}</div>
+            <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>{fmt(it.ts)}</span>
+              {it.detail?.tag && <span className="inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">#{it.detail.tag}</span>}
+              {it.detail?.subject && <span className="italic truncate max-w-[20rem]">« {it.detail.subject} »</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const BookingEditor = ({ bookingId, onClose, onSaved, notify }) => {
   const [b, setB] = useState(null);
   const [form, setForm] = useState({});
@@ -652,6 +722,14 @@ const BookingEditor = ({ bookingId, onClose, onSaved, notify }) => {
 
         <div><Label>Notes terrain</Label>
           <Textarea value={form.field_notes} onChange={(e) => setForm({...form, field_notes: e.target.value})} rows={4} placeholder="Travaux réalisés, matériel installé, recommandations…" />
+        </div>
+
+        <div className="border-t border-slate-200 pt-4">
+          <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-slate-700">
+            <Activity className="w-4 h-4 text-cyan-600" />
+            Historique des notifications
+          </div>
+          <BookingTimeline bookingId={bookingId} />
         </div>
 
         <div className="flex gap-2 justify-end pt-2">
