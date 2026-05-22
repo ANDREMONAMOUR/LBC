@@ -54,6 +54,18 @@ SPA React 19 + FastAPI + MongoDB, avec intégrations Brevo (SMS/Email), Stripe (
 - ✅ Fix `load_dotenv(override=True)` dans `backend/config.py`
 - ✅ Smoke test passé : `/api/health`, OTP send/verify (bypass 1234), landing page rendue
 
+### 2026-05-22 — Production mode + Offre De Lancement
+- ✅ `SMS_DEV_MODE=false` dans `backend/.env` → envoi SMS/Email Brevo réel
+- ✅ `OTP_BYPASS_CODE=` (vide) → bypass `1234` désactivé, `/api/admin/run-reminders-j1` retourne 404
+- ✅ Health check confirmé : `{"status":"ok","sms_dev_mode":false}`
+- ✅ Refonte messaging landing "Offre De Lancement" :
+  - Composant `LaunchOfferBanner` ajouté en haut de la landing (gradient cyan→purple)
+  - Badge hero `"Offre De Lancement · Agrément SAP en cours"`
+  - Carte tarif : `"-50% SAP"` + `"Crédit d'impôt déduit"` remplacés par `"Lancement"` + `"Agrément SAP en cours d'obtention"`
+  - Footer exemples : reformulé "Offre De Lancement à 40€/h · Agrément SAP en cours d'obtention"
+  - Section sombre "moitié prix" → "Tarif unique 40€/h, sans complication. Crédit d'impôt 50% activé après agrément"
+  - Flux booking : carte récap "SAP" → "Lancement" avec bandeau "Offre De Lancement"
+
 ### 2026-05-21 — Enhancements
 - ✅ Lien Google Reviews rendu configurable via `REACT_APP_GOOGLE_REVIEWS_URL` (frontend/.env)
   - Fichier `App.js` : composant `GoogleReviews` utilise `process.env.REACT_APP_GOOGLE_REVIEWS_URL` avec fallback générique
