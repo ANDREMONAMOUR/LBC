@@ -1,4 +1,5 @@
 """Generate a SAP-compliant PDF invoice using ReportLab."""
+import os
 from io import BytesIO
 from datetime import datetime
 
@@ -12,10 +13,13 @@ from reportlab.platypus import (
     Spacer,
     Table,
     TableStyle,
+    Image,
 )
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
 
 import config
+
+SAP_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "sap-logo.jpg")
 
 INK = colors.HexColor("#1E293B")
 CYAN = colors.HexColor("#06B6D4")
@@ -75,6 +79,14 @@ def build_invoice_pdf(invoice: dict, user: dict) -> bytes:
             S["muted"],
         ),
     ]
+    # SAP logo block (right next to invoice meta)
+    sap_logo_block = None
+    if os.path.exists(SAP_LOGO_PATH):
+        try:
+            sap_logo_block = Image(SAP_LOGO_PATH, width=22 * mm, height=22 * mm)
+        except Exception:
+            sap_logo_block = None
+
     meta_cell = [
         Paragraph("<b>FACTURE</b>", S["bold_right"]),
         Paragraph(f"N° {invoice.get('ref', '')}", S["right"]),
@@ -83,10 +95,17 @@ def build_invoice_pdf(invoice: dict, user: dict) -> bytes:
             S["right"],
         ),
     ]
-    header = Table(
-        [[brand_cell, meta_cell]],
-        colWidths=[110 * mm, 60 * mm],
-    )
+    if sap_logo_block is not None:
+        # Put logo on the left of brand block via a 3-col header
+        header = Table(
+            [[sap_logo_block, brand_cell, meta_cell]],
+            colWidths=[26 * mm, 90 * mm, 54 * mm],
+        )
+    else:
+        header = Table(
+            [[brand_cell, meta_cell]],
+            colWidths=[116 * mm, 54 * mm],
+        )
     header.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LINEBELOW", (0, 0), (-1, -1), 1, INK),

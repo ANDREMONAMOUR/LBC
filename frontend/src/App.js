@@ -422,7 +422,7 @@ const HowItWorks = () => {
     { icon: CalendarDays, title: "Vous réservez", desc: "En 2 minutes, sans engagement, depuis cette page ou par téléphone." },
     { icon: Phone, title: "Jordan vous appelle", desc: "Pour confirmer votre besoin et préparer son intervention." },
     { icon: Home, title: "Il vient chez vous", desc: "Sur la plage horaire choisie. Diagnostic clair, sans jargon." },
-    { icon: FileText, title: "Facture détaillée", desc: "Envoyée par e-mail dès la fin de l'intervention. Crédit d'impôt 50% activé dès obtention de l'agrément SAP." },
+    { icon: FileText, title: "Facture conforme SAP", desc: "Envoyée par e-mail. Vous récupérez 50% via crédit d'impôt." },
   ];
   return (
     <section className="mt-16 md:mt-24">
@@ -520,7 +520,7 @@ const PricingExamples = () => {
           <div>
             <Badge tone="purple" icon={ThumbsUp}>Tarifs transparents</Badge>
             <h2 className="mt-3 text-2xl md:text-3xl font-extrabold text-ink-900">Exemples concrets de coût</h2>
-            <p className="mt-1 text-ink-600">Tarif Offre De Lancement à 40€/h, sans crédit d'impôt SAP pour l'instant (agrément en cours).</p>
+            <p className="mt-1 text-ink-600">Tarifs nets après crédit d'impôt SAP (N° SAP812712875). Vous ne payez que la moitié.</p>
           </div>
           <SpeakButton text="Exemples concrets de coût après le crédit d'impôt Service à la Personne. Ordinateur lent : 1 heure, 40 euros. Transfert de photos : 1h30, 60 euros. Box internet : 1 heure, 40 euros. Sécuriser les comptes : 2 heures, 80 euros. Configurer une imprimante : 1 heure, 40 euros." />
         </div>
@@ -545,7 +545,7 @@ const PricingExamples = () => {
           );
         })}
       </div>
-      <p className="mt-3 text-xs text-ink-500 text-center">Tarif horaire de base 80€/h · Crédit d'impôt 50% déduit automatiquement (case 7DB).</p>
+      <p className="mt-3 text-xs text-ink-500 text-center">Tarif horaire de base 80€/h · Crédit d'impôt 50% déduit automatiquement (case 7DB) · Agrément SAP N° SAP812712875.</p>
     </section>
   );
 };
@@ -618,16 +618,16 @@ const TESTIMONIALS = [
 ];
 
 const LaunchOfferBanner = () => (
-  <div data-testid="launch-offer-banner" className="w-full bg-gradient-to-r from-brandCyan via-cyan-400 to-brandPurple text-white">
+  <div data-testid="sap-banner" className="w-full bg-gradient-to-r from-sapGreen via-emerald-500 to-cyan-500 text-white">
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm md:text-base font-bold tracking-tight">
       <span className="inline-flex items-center gap-2">
-        <Sparkles className="w-4 h-4 md:w-5 md:h-5" />
-        Offre De Lancement
+        <ShieldCheck className="w-4 h-4 md:w-5 md:h-5" />
+        Agréé Service à la Personne
       </span>
       <span className="hidden md:inline opacity-60">·</span>
-      <span>Toutes prestations à <span className="bg-white/20 rounded-md px-2 py-0.5">40€/h</span></span>
+      <span>N° <span className="bg-white/20 rounded-md px-2 py-0.5">SAP812712875</span></span>
       <span className="hidden md:inline opacity-60">·</span>
-      <span className="text-white/90 font-semibold">Agrément SAP en cours d'obtention</span>
+      <span className="text-white/95 font-semibold">50% crédit d'impôt automatique</span>
     </div>
   </div>
 );
@@ -639,7 +639,7 @@ const Landing = ({ onStartAuth }) => (
     <section className="grid md:grid-cols-12 gap-10 items-center animate-fade-in-up">
       <div className="md:col-span-7">
         <div className="flex flex-wrap items-center gap-3">
-          <Badge tone="cyan" icon={Sparkles}>Offre De Lancement · Agrément SAP en cours</Badge>
+          <Badge tone="green" icon={ShieldCheck}>Agréé SAP · N° SAP812712875 · 50% crédit d'impôt</Badge>
           <GoogleReviews />
         </div>
         <div className="mt-5 flex items-start gap-3">
@@ -649,7 +649,7 @@ const Landing = ({ onStartAuth }) => (
           <SpeakButton size="lg" text="L'expertise informatique chez vous. Dépannage, conseil et accompagnement à domicile sur Lyon. Un artisan de confiance, patient et sans jargon, pour retrouver votre sérénité numérique, avec une facture divisée par deux grâce à l'État." className="mt-3" />
         </div>
         <p className="mt-6 text-lg md:text-xl text-ink-600 max-w-xl leading-relaxed">
-          Dépannage, conseil et accompagnement à domicile sur Lyon. Un artisan de confiance, patient et sans jargon, pour retrouver votre sérénité numérique — à <strong>40€/h en Offre De Lancement</strong>.
+          Dépannage, conseil et accompagnement à domicile sur Lyon. Un artisan de confiance, patient et sans jargon, pour retrouver votre sérénité numérique — avec une facture divisée par deux grâce à l'État.
         </p>
         <div className="mt-6"><JordanCard /></div>
         <div className="mt-7 flex flex-col sm:flex-row gap-3">
@@ -672,7 +672,7 @@ const Landing = ({ onStartAuth }) => (
           <div className="relative bg-white rounded-3xl border border-ink-200 shadow-card p-6 md:p-8">
             <div className="flex items-center justify-between">
               <Badge tone="cyan" icon={Sparkles}>Devis indicatif</Badge>
-              <span className="text-xs text-ink-500 font-bold">Offre De Lancement</span>
+              <span className="text-xs text-ink-500 font-bold">Tarif net après aide</span>
             </div>
             <div className="mt-6 flex items-end justify-between">
               <div>
@@ -682,8 +682,8 @@ const Landing = ({ onStartAuth }) => (
                 </div>
               </div>
               <div className="text-right">
-                <div className="inline-flex items-center gap-1.5 text-brandCyan font-bold"><Sparkles className="w-5 h-5" /> Lancement</div>
-                <p className="mt-2 text-xs text-ink-500 max-w-[10rem]">Agrément SAP en cours d'obtention</p>
+                <div className="inline-flex items-center gap-1.5 text-sapGreen font-bold"><ShieldCheck className="w-5 h-5" /> -50% SAP</div>
+                <p className="mt-2 text-xs text-ink-500 max-w-[10rem]">Crédit d'impôt déduit automatiquement</p>
               </div>
             </div>
             <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
@@ -729,16 +729,16 @@ const Landing = ({ onStartAuth }) => (
     <section className="mt-16 md:mt-24">
       <div className="rounded-3xl bg-ink-800 text-white p-8 md:p-12 grid md:grid-cols-2 gap-8 items-center">
         <div>
-          <Badge tone="cyan" icon={Sparkles}>Offre De Lancement</Badge>
+          <Badge tone="green" icon={ShieldCheck}>Service à la Personne — Agrément SAP812712875</Badge>
           <h3 className="mt-4 text-3xl md:text-4xl font-extrabold leading-tight">
-            Tarif unique <span className="text-brandCyan">40€/h</span>, sans complication.
+            Vous payez <span className="text-brandCyan">moitié prix</span>, l'État finance le reste.
           </h3>
           <p className="mt-4 text-white/80 text-lg leading-relaxed max-w-lg">
-            Pendant la phase de lancement, toutes les prestations sont à 40€/h. Notre agrément Service à la Personne (SAP) est en cours d'obtention : dès qu'il sera délivré, vous bénéficierez automatiquement du crédit d'impôt de 50%.
+            Nous sommes agréés Service à la Personne (N° SAP812712875). Vous récupérez 50% via crédit d'impôt — même si vous n'êtes pas imposable.
           </p>
         </div>
         <div className="grid grid-cols-3 gap-3 text-center">
-          {[{ v: "80€", l: "Tarif standard" }, { v: "-40€", l: "Remise lancement" }, { v: "40€", l: "Votre prix" }].map((s, i) => (
+          {[{ v: "80€", l: "Tarif horaire" }, { v: "-40€", l: "Crédit d'impôt" }, { v: "40€", l: "Coût réel" }].map((s, i) => (
             <div key={i} className="rounded-2xl bg-white/10 p-5">
               <div className="text-3xl md:text-4xl font-black text-white">{s.v}</div>
               <div className="mt-2 text-sm text-white/70 font-bold">{s.l}</div>
@@ -939,7 +939,7 @@ const BookingWizard = ({ draft, setDraft, onSubmit, onCgvOpen, submitting }) => 
       <div className="lg:col-span-2">
         <Card>
           <div className="flex items-start justify-between gap-3 mb-2">
-            <Badge tone="cyan" icon={Sparkles}>Déplacement à votre domicile · Offre De Lancement</Badge>
+            <Badge tone="green" icon={ShieldCheck}>Déplacement à votre domicile (50% SAP)</Badge>
             <span className="text-sm font-bold text-ink-500">Étape {step}/3</span>
           </div>
           <StepIndicator step={step} />
@@ -1041,15 +1041,15 @@ const BookingWizard = ({ draft, setDraft, onSubmit, onCgvOpen, submitting }) => 
           <Card className="!p-6 bg-ink-800 text-white border-ink-800 !shadow-card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-brandCyan"><CreditCard className="w-5 h-5" /><span className="text-sm font-bold uppercase tracking-wide">Devis indicatif</span></div>
-              <Badge tone="cyan">Lancement</Badge>
+              <Badge tone="cyan">SAP</Badge>
             </div>
             <div className="mt-5 flex items-center justify-between text-white/80">
-              <span>Tarif standard</span><span className="font-bold text-white line-through">{HOURLY_BASE}€/h</span>
+              <span>Tarif horaire de base</span><span className="font-bold text-white">{HOURLY_BASE}€/h</span>
             </div>
             {selectedDevice && <div className="mt-3 rounded-xl border border-white/15 bg-white/5 px-4 py-3 flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-brandPurple" /><span className="text-white">{selectedDevice.label}</span></div>}
-            <div className="mt-4 rounded-xl bg-brandCyan/15 border-l-4 border-brandCyan px-4 py-3">
-              <div className="font-bold text-brandCyan flex items-center gap-2"><Sparkles className="w-5 h-5" />Offre De Lancement</div>
-              <p className="text-sm text-white/85 mt-1">Tarif unique 40€/h pendant la phase de lancement. Agrément SAP en cours d'obtention — crédit d'impôt 50% activé dès délivrance.</p>
+            <div className="mt-4 rounded-xl bg-sapGreen/15 border-l-4 border-sapGreen px-4 py-3">
+              <div className="font-bold text-sapGreen flex items-center gap-2"><ShieldCheck className="w-5 h-5" />Avantage Fiscal SAP</div>
+              <p className="text-sm text-white/85 mt-1">L'État déduit automatiquement 50% du montant de cette facture de vos impôts. Agrément N° SAP812712875.</p>
             </div>
 
             {/* Item #11 — Récap synthétique avant validation */}
@@ -1063,7 +1063,7 @@ const BookingWizard = ({ draft, setDraft, onSubmit, onCgvOpen, submitting }) => 
             )}
 
             <div className="mt-6 flex items-end justify-between">
-              <span className="text-white/80 text-sm">Votre tarif Offre De Lancement</span>
+              <span className="text-white/80 text-sm">Votre coût net final</span>
               <div className="text-5xl font-black text-brandCyan leading-none">{HOURLY_NET}<span className="text-2xl text-white/80">€/h</span></div>
             </div>
             <label className="mt-6 flex items-start gap-3 cursor-pointer select-none">
@@ -1621,7 +1621,18 @@ function AppInner() {
 
       <footer className="mt-12 border-t border-ink-200 bg-white pb-20 md:pb-0">
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 grid md:grid-cols-3 gap-6">
-          <div><Logo size="sm" /><p className="mt-3 text-sm text-ink-600 max-w-xs">L'expertise informatique, sereinement, à votre domicile.</p></div>
+          <div>
+            <Logo size="sm" />
+            <p className="mt-3 text-sm text-ink-600 max-w-xs">L'expertise informatique, sereinement, à votre domicile.</p>
+            <div className="mt-4 flex items-center gap-3" data-testid="sap-badge-footer">
+              <img src="/sap-logo.jpg" alt="Logo Services à la Personne" className="w-14 h-14 object-contain rounded-lg" />
+              <div className="text-xs leading-tight">
+                <div className="font-bold text-ink-800">Agréé SAP</div>
+                <div className="text-ink-600">N° SAP812712875</div>
+                <div className="text-ink-500">Crédit d'impôt 50%</div>
+              </div>
+            </div>
+          </div>
           <div><h5 className="text-sm uppercase font-bold text-ink-500 tracking-wide">Assistance &amp; Contact</h5>
             <ul className="mt-2 space-y-1 text-ink-700">
               <li className="inline-flex items-center gap-2"><Phone className="w-4 h-4 text-brandCyan" /> {SVI_PHONE}</li>
@@ -1634,7 +1645,7 @@ function AppInner() {
               <li>Mentions légales</li><li>Politique de confidentialité</li><li>Agrément Service à la Personne</li>
             </ul></div>
         </div>
-        <div className="bg-ink-50 py-3 text-center text-xs text-ink-500">© {new Date().getFullYear()} Le Bon Clic — Tous droits réservés.</div>
+        <div className="bg-ink-50 py-3 text-center text-xs text-ink-500">© {new Date().getFullYear()} Le Bon Clic — Tous droits réservés. · SIREN/SAP812712875 · Service à la Personne agréé.</div>
       </footer>
 
       <Lumi open={lumiOpen} setOpen={setLumiOpen} isAuthed={!!user} onContactJordan={onContactJordan} />

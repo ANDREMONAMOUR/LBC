@@ -54,6 +54,11 @@ AIRTABLE_SYNC_ENABLED = os.environ.get("AIRTABLE_SYNC_ENABLED", "false").lower()
 # Brevo Webhook (incoming events from Brevo: email + SMS)
 BREVO_WEBHOOK_SECRET = os.environ.get("BREVO_WEBHOOK_SECRET", "")
 
+# Twilio Programmable SMS (replaces Brevo SMS)
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_FROM = os.environ.get("TWILIO_FROM", "")
+
 # Admin (CRM seed)
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")

@@ -17,7 +17,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 import config
 from brevo_email import send_reminder_j1_email
-from brevo_sms import to_e164_fr
+from twilio_sms import send_sms as _twilio_send_sms, to_e164_fr
 
 log = logging.getLogger("scheduler")
 
@@ -27,46 +27,17 @@ _scheduler: AsyncIOScheduler | None = None
 
 
 async def _send_reminder_sms(phone_digits: str, booking: dict) -> dict | None:
-    """Send a short J-1 reminder SMS via Brevo. Best-effort."""
-    recipient = to_e164_fr(phone_digits)
+    """Send a short J-1 reminder SMS via Twilio. Best-effort."""
     time_window = booking.get("time_window", "")
     ref = booking.get("ref", "")
     content = (
         f"Le Bon Clic : rappel - votre RDV {ref} est demain ({time_window}). "
         f"Jordan vous appelle avant. Branchez votre appareil. Tel: {config.COMPANY_SVI}."
     )
-    payload = {
-        "sender": config.BREVO_SENDER_NAME[:11],
-        "recipient": recipient,
-        "content": content,
-        "type": "transactional",
-        "tag": "reminder_j1",
-        "unicodeEnabled": False,
-    }
-    headers = {
-        "accept": "application/json",
-        "content-type": "application/json",
-        "api-key": config.BREVO_API_KEY,
-    }
-    if config.SMS_DEV_MODE or not config.BREVO_API_KEY:
-        log.warning(f"[reminder_sms DEV] would send to {recipient}: {content}")
-        return {"status": "dev_mode"}
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.post(config.BREVO_SMS_URL, headers=headers, json=payload)
-            r.raise_for_status()
-            data = r.json()
-            log.info(
-                f"[reminder_sms] sent to {recipient}: messageId={data.get('messageId')}"
-            )
-            return data
-    except httpx.HTTPStatusError as e:
-        log.error(
-            f"[reminder_sms] HTTP {e.response.status_code} for {recipient}: {e.response.text}"
-        )
-        return None
+        return await _twilio_send_sms(phone_digits, content, tag="reminder_j1")
     except Exception as e:
-        log.error(f"[reminder_sms] failed for {recipient}: {e}")
+        log.error(f"[reminder_sms] failed for {to_e164_fr(phone_digits)}: {e}")
         return None
 
 

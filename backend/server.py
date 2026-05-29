@@ -37,7 +37,7 @@ from models import (
     ContactMessageIn, ContactMessage,
 )
 from auth import create_token, current_user_id, optional_user_id
-from brevo_sms import send_otp_sms
+from twilio_sms import send_otp_sms
 from brevo_email import (
     send_booking_created_email,
     send_booking_updated_email,
