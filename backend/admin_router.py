@@ -31,6 +31,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 import config
 import admin_auth
+import airtable_sync
 from database import db
 from models import (
     AdminAuthResponse,
@@ -250,6 +251,7 @@ async def admin_update_client(
         return {"status": "noop", "client": user}
     await db.users.update_one({"id": user_id}, {"$set": update})
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    airtable_sync.sync_client(user)
     return {"status": "ok", "client": user}
 
 
@@ -334,6 +336,8 @@ async def admin_create_booking(
     await db.bookings.insert_one(booking)
     booking.pop("_id", None)
     log.info(f"[admin] booking created ref={booking['ref']} user={user['id']}")
+    airtable_sync.sync_client(user)
+    airtable_sync.sync_booking(booking, user)
     return Booking(**booking)
 
 
@@ -359,6 +363,8 @@ async def admin_update_booking(
         return Booking(**existing)
     await db.bookings.update_one({"id": booking_id}, {"$set": update})
     res = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    user = await db.users.find_one({"id": res.get("user_id")}, {"_id": 0})
+    airtable_sync.sync_booking(res, user)
     return Booking(**res)
 
 
@@ -604,6 +610,7 @@ async def admin_create_invoice(
     await db.invoices.insert_one(inv)
     inv.pop("_id", None)
     log.info(f"[admin] invoice created ref={inv['ref']} user={user['id']}")
+    airtable_sync.sync_invoice(inv, user)
     return Invoice(**inv)
 
 
@@ -630,6 +637,8 @@ async def admin_update_invoice(
         return Invoice(**existing)
     await db.invoices.update_one({"id": invoice_id}, {"$set": update})
     res = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
+    user = await db.users.find_one({"id": res.get("user_id")}, {"_id": 0})
+    airtable_sync.sync_invoice(res, user)
     return Invoice(**res)
 
 

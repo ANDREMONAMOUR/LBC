@@ -49,6 +49,7 @@ from scheduler import start_scheduler, shutdown_scheduler, send_j1_reminders
 import payments as payments_module
 from admin_router import admin_router, seed_admin_if_needed
 import brevo_webhook as brevo_webhook_module
+import airtable_sync
 
 
 logging.basicConfig(
@@ -309,6 +310,8 @@ async def complete_profile(body: UserProfileIn, uid: str = Depends(current_user_
         raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
     # Seed demo invoices on first completion
     await _seed_demo_invoices(uid, res["phone"])
+    # Mirror to Airtable (best-effort)
+    airtable_sync.sync_client(res)
     return User(**res)
 
 
@@ -361,6 +364,8 @@ async def create_booking(body: BookingCreate, uid: str = Depends(current_user_id
     booking.pop("_id", None)
     # Confirmation email (fire-and-forget)
     _fire(send_booking_created_email(booking, user))
+    # Mirror to Airtable (best-effort)
+    airtable_sync.sync_booking(booking, user)
     return Booking(**booking)
 
 

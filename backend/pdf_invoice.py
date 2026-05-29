@@ -181,7 +181,7 @@ def build_invoice_pdf(invoice: dict, user: dict) -> bytes:
 
     # ---- SAP / Crédit d'impôt callout ----
     sap_cell = [
-        Paragraph("<b>Service à la Personne — Crédit d'impôt 50%</b>", S["sap_title"]),
+        Paragraph("<b>Service à la Personne (SAP) — Crédit d'impôt 50%</b>", S["sap_title"]),
         Spacer(1, 2),
         Paragraph(
             "Conformément à l'article 199 sexdecies du CGI, vous bénéficiez d'un crédit d'impôt "
