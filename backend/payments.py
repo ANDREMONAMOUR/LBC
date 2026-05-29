@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -54,10 +55,24 @@ def _require_stripe():
     stripe.api_key = config.STRIPE_API_KEY
 
 
-def _success_cancel_urls(origin: str) -> tuple[str, str]:
-    origin = (origin or "").rstrip("/")
+def _validate_origin_url(origin: str) -> str:
+    origin = (origin or "").strip().rstrip("/")
     if not origin:
         raise HTTPException(status_code=400, detail="origin_url manquant.")
+
+    parsed = urlparse(origin)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="origin_url invalide.")
+
+    allowed_origins = {o.rstrip("/") for o in (config.ALLOWED_ORIGINS or []) if o}
+    if allowed_origins and origin not in allowed_origins:
+        raise HTTPException(status_code=400, detail="origin_url non autorisée.")
+
+    return origin
+
+
+def _success_cancel_urls(origin: str) -> tuple[str, str]:
+    origin = _validate_origin_url(origin)
     # SPA reads ?session_id=... and polls the backend for final status.
     return (
         f"{origin}/?payment=success&session_id={{CHECKOUT_SESSION_ID}}",
