@@ -1,19 +1,26 @@
-"""Airtable best-effort CRM mirror.
+"""Airtable best-effort CRM mirror — aligned on the customer's actual schema.
 
-Syncs MongoDB documents (users, bookings, invoices) to the customer's
-Airtable workspace. All operations are fire-and-forget and never raise
-back to the caller — errors are logged only, so a temporary Airtable
-outage cannot block the public API.
+Base : "Gestion Assistance Informatique - Le Bon Clic" (app0ta8fnXfV0SSi0).
 
-Tables (configurable via env, defaults match the customer's setup):
-  - AIRTABLE_TABLE_CLIENTS       → "Clients"            (upsert on "Téléphone")
-  - AIRTABLE_TABLE_CATALOGUE     → "Catalogue & Tarifs" (read-only, source of truth)
-  - AIRTABLE_TABLE_INTERVENTIONS → "Réservations"       (upsert on "Référence")
-  - AIRTABLE_TABLE_FACTURES      → "Documents"          (upsert on "Référence")
+Tables and fields (verified via meta API):
+  • Clients
+      - Téléphone, Prénom, Nom, Email, "Adresse postale complète",
+        "Précisions d'accès", "Statut Profil", "ID interne"
+      → Upsert key: Téléphone
 
-Field naming follows the French business conventions of the SAP space.
-If the customer's Airtable column names differ, errors will appear in
-backend logs but the public app keeps working.
+  • Réservations
+      - "ID Réservation", Client (link → Clients), "Symptôme signalé",
+        "Date de l'intervention" (text), Statut (singleSelect), "Notes privées"
+      → Upsert key: "ID Réservation"
+
+  • Documents
+      - "ID Document", Type (singleSelect), Client (link), "Réservation liée" (link),
+        "Montant TTC" (currency), Statut (singleSelect), "Date d'émission"
+      → Upsert key: "ID Document"
+
+  • Catalogue & Tarifs — read-only
+
+All write ops are fire-and-forget; errors are logged only.
 """
 from __future__ import annotations
 
@@ -48,18 +55,57 @@ def _headers() -> dict[str, str]:
 
 
 def _table_url(table_name: str) -> str:
-    # Airtable table names may contain spaces or "&" — must be URL-encoded.
     return f"{AIRTABLE_API}/{config.AIRTABLE_BASE_ID}/{quote(table_name, safe='')}"
 
 
-async def _upsert(table_name: str, merge_on: list[str], fields: dict[str, Any]) -> None:
-    """Upsert a single record. Best-effort: errors only logged."""
+def _iso(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
+def _fire(coro):
+    """Schedule a coroutine without awaiting it (fire-and-forget)."""
+    try:
+        asyncio.create_task(coro)
+    except RuntimeError:
+        asyncio.get_event_loop().run_until_complete(coro)
+
+
+async def _find_record_id(table_name: str, field: str, value: str) -> str | None:
+    """Look up a record id by exact field match. None on failure."""
+    if not value:
+        return None
+    url = _table_url(table_name)
+    # Use filterByFormula with proper escaping for the value
+    safe_value = value.replace("'", "\\'")
+    params = {
+        "filterByFormula": f"{{{field}}} = '{safe_value}'",
+        "maxRecords": 1,
+        "fields[]": field,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(url, headers=_headers(), params=params)
+            if r.status_code >= 400:
+                log.warning(f"[airtable lookup {table_name}.{field}={value!r}] HTTP {r.status_code}: {r.text[:200]}")
+                return None
+            records = (r.json() or {}).get("records") or []
+            return records[0]["id"] if records else None
+    except Exception as e:
+        log.warning(f"[airtable lookup {table_name}.{field}={value!r}] failed: {e}")
+        return None
+
+
+async def _upsert(table_name: str, merge_on: list[str], fields: dict[str, Any]) -> dict | None:
+    """Upsert one record on the given key fields. Returns the upserted record or None."""
     if not _enabled():
-        return
-    # Skip empty merge keys — would create dupes
+        return None
     if not any(fields.get(k) for k in merge_on):
-        log.warning(f"[airtable {table_name}] skip upsert, all merge keys empty: {merge_on}")
-        return
+        log.warning(f"[airtable {table_name}] skip upsert, empty merge keys {merge_on}")
+        return None
     url = _table_url(table_name)
     body = {
         "performUpsert": {"fieldsToMergeOn": merge_on},
@@ -70,125 +116,155 @@ async def _upsert(table_name: str, merge_on: list[str], fields: dict[str, Any]) 
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.patch(url, headers=_headers(), json=body)
             if r.status_code >= 400:
-                log.error(
-                    f"[airtable {table_name}] HTTP {r.status_code}: {r.text[:400]}"
-                )
-                return
+                log.error(f"[airtable {table_name}] HTTP {r.status_code}: {r.text[:500]}")
+                return None
             data = r.json()
             recs = data.get("records") or []
             created = len(data.get("createdRecords") or [])
             updated = len(data.get("updatedRecords") or [])
             log.info(
-                f"[airtable {table_name}] upsert ok — created={created} updated={updated} ids={[r.get('id') for r in recs]}"
+                f"[airtable {table_name}] upsert ok — created={created} updated={updated} id={recs[0].get('id') if recs else None}"
             )
+            return recs[0] if recs else None
     except Exception as e:
         log.error(f"[airtable {table_name}] sync failed: {e}")
-
-
-def _fire(coro):
-    """Schedule a coroutine without awaiting it."""
-    try:
-        asyncio.create_task(coro)
-    except RuntimeError:
-        # No running loop (e.g. called from a sync context) — run inline.
-        asyncio.get_event_loop().run_until_complete(coro)
-
-
-def _iso(value: Any) -> str | None:
-    """Convert a datetime-like value to ISO 8601 string or None."""
-    if value is None:
         return None
-    if isinstance(value, datetime):
-        return value.isoformat()
-    return str(value)
 
 
 # ---------------------------------------------------------------------------
-# Public sync helpers — call these from hot paths, they never raise.
+# Status mappers (internal → Airtable singleSelect values)
 # ---------------------------------------------------------------------------
 
-def sync_client(user: dict) -> None:
-    """Push a Client (user) profile to Airtable, upserting on Téléphone."""
-    if not _enabled():
-        return
-    phone = user.get("phone") or ""
+_BOOKING_STATUS_FR = {
+    "confirmed":   "Confirmée",
+    "in_progress": "En cours",
+    "completed":   "Réalisée",
+    "cancelled":   "Annulée",
+}
+
+_INVOICE_STATUS_FR = {
+    True:  "Payée",
+    False: "À régler",
+}
+
+
+# ---------------------------------------------------------------------------
+# Async core syncs
+# ---------------------------------------------------------------------------
+
+async def _sync_client_async(user: dict) -> str | None:
+    """Upsert a Client and return its Airtable record id."""
+    phone = (user.get("phone") or "").strip()
+    if not phone:
+        return None
+    profile_complete = bool(user.get("profile_complete"))
     fields = {
         "Téléphone": phone,
         "Prénom": user.get("first_name") or "",
         "Nom": user.get("last_name") or "",
         "Email": user.get("email") or "",
-        "Adresse": user.get("address") or "",
-        "Détails d'accès": user.get("access_details") or "",
+        "Adresse postale complète": user.get("address") or "",
+        "Précisions d'accès": user.get("access_details") or "",
+        "Statut Profil": "Complet" if profile_complete else "Incomplet",
         "ID interne": user.get("id") or "",
-        "Créé le": _iso(user.get("created_at")),
     }
-    # Strip empty string fields except phone (merge key)
     fields = {k: v for k, v in fields.items() if v not in (None, "") or k == "Téléphone"}
-    _fire(_upsert(config.AIRTABLE_TABLE_CLIENTS, ["Téléphone"], fields))
+    rec = await _upsert(config.AIRTABLE_TABLE_CLIENTS, ["Téléphone"], fields)
+    return rec.get("id") if rec else None
+
+
+async def _sync_booking_async(booking: dict, user: dict | None = None) -> str | None:
+    """Upsert a Réservation. Resolves linked Client by phone."""
+    ref = booking.get("ref") or ""
+    if not ref:
+        return None
+    fields = {
+        "ID Réservation": ref,
+        "Symptôme signalé": booking.get("symptom") or "",
+        "Date de l'intervention": f"{booking.get('date','')} {booking.get('time_window','')}".strip(),
+        "Statut": _BOOKING_STATUS_FR.get(booking.get("status"), booking.get("status") or ""),
+    }
+    if booking.get("field_notes"):
+        fields["Notes privées"] = booking["field_notes"]
+
+    # Link to Client via phone lookup (best effort)
+    if user and user.get("phone"):
+        # Make sure the client exists in Airtable first
+        client_rec_id = await _sync_client_async(user)
+        if client_rec_id:
+            fields["Client"] = [client_rec_id]
+
+    fields = {k: v for k, v in fields.items() if v not in (None, "") or k == "ID Réservation"}
+    rec = await _upsert(config.AIRTABLE_TABLE_INTERVENTIONS, ["ID Réservation"], fields)
+    return rec.get("id") if rec else None
+
+
+async def _sync_invoice_async(invoice: dict, user: dict | None = None) -> str | None:
+    """Upsert a Document (facture). Links Client + Réservation when available."""
+    ref = invoice.get("ref") or ""
+    if not ref:
+        return None
+    fields = {
+        "ID Document": ref,
+        "Type": "Facture",
+        "Date d'émission": invoice.get("date") or "",
+        "Montant TTC": float(invoice.get("base_total") or 0),
+        "Statut": _INVOICE_STATUS_FR[bool(invoice.get("paid", False))],
+    }
+
+    # Link to Client
+    if user and user.get("phone"):
+        client_rec_id = await _sync_client_async(user)
+        if client_rec_id:
+            fields["Client"] = [client_rec_id]
+
+    # Link to Réservation if booking_id available
+    booking_id = invoice.get("booking_id")
+    if booking_id:
+        # The Airtable Réservation key is the booking ref, not internal id.
+        # We must look it up via the linked booking doc — but to keep this
+        # lean we accept the caller passing booking_ref directly via invoice["_booking_ref"].
+        booking_ref = invoice.get("_booking_ref")
+        if booking_ref:
+            booking_rec_id = await _find_record_id(
+                config.AIRTABLE_TABLE_INTERVENTIONS, "ID Réservation", booking_ref
+            )
+            if booking_rec_id:
+                fields["Réservation liée"] = [booking_rec_id]
+
+    fields = {k: v for k, v in fields.items() if v not in (None, "") or k == "ID Document"}
+    rec = await _upsert(config.AIRTABLE_TABLE_FACTURES, ["ID Document"], fields)
+    return rec.get("id") if rec else None
+
+
+# ---------------------------------------------------------------------------
+# Public fire-and-forget helpers
+# ---------------------------------------------------------------------------
+
+def sync_client(user: dict) -> None:
+    if not _enabled():
+        return
+    _fire(_sync_client_async(user))
 
 
 def sync_booking(booking: dict, user: dict | None = None) -> None:
-    """Push a Réservation (booking) to Airtable, upserting on Référence."""
     if not _enabled():
         return
-    ref = booking.get("ref") or ""
-    phone = (user or {}).get("phone") or ""
-    fields = {
-        "Référence": ref,
-        "Téléphone client": phone,
-        "Type d'intervention": booking.get("device_id") or "",
-        "Symptôme": booking.get("symptom") or "",
-        "Date": booking.get("date") or "",
-        "Créneau": booking.get("time_window") or "",
-        "Statut": booking.get("status") or "",
-        "Adresse": booking.get("address") or "",
-        "ID interne": booking.get("id") or "",
-        "Créé le": _iso(booking.get("created_at")),
-    }
-    if booking.get("cancelled_at"):
-        fields["Annulée le"] = _iso(booking["cancelled_at"])
-    if booking.get("field_notes"):
-        fields["Notes terrain"] = booking["field_notes"]
-    if booking.get("actual_hours") is not None:
-        fields["Heures réelles"] = float(booking["actual_hours"])
-    fields = {k: v for k, v in fields.items() if v not in (None, "") or k == "Référence"}
-    _fire(_upsert(config.AIRTABLE_TABLE_INTERVENTIONS, ["Référence"], fields))
+    _fire(_sync_booking_async(booking, user))
 
 
 def sync_invoice(invoice: dict, user: dict | None = None) -> None:
-    """Push a Document/Facture to Airtable, upserting on Référence."""
     if not _enabled():
         return
-    ref = invoice.get("ref") or ""
-    phone = (user or {}).get("phone") or ""
-    fields = {
-        "Référence": ref,
-        "Téléphone client": phone,
-        "Intitulé": invoice.get("label") or "",
-        "Date": invoice.get("date") or "",
-        "Heures": float(invoice.get("hours") or 0),
-        "Total HT": float(invoice.get("base_total") or 0),
-        "Net après SAP": float(invoice.get("net_total") or 0),
-        "Payée": bool(invoice.get("paid", False)),
-        "ID interne": invoice.get("id") or "",
-        "Créé le": _iso(invoice.get("created_at")),
-    }
-    if invoice.get("paid_at"):
-        fields["Payée le"] = _iso(invoice["paid_at"])
-    fields = {k: v for k, v in fields.items() if v not in (None, "") or k in {"Référence", "Payée"}}
-    _fire(_upsert(config.AIRTABLE_TABLE_FACTURES, ["Référence"], fields))
+    _fire(_sync_invoice_async(invoice, user))
 
 
 # ---------------------------------------------------------------------------
-# Admin helpers — list Airtable content (read-only)
+# Read helpers — Catalogue & Tarifs is the source of truth
 # ---------------------------------------------------------------------------
 
 async def list_catalogue() -> list[dict]:
-    """Read the Catalogue & Tarifs table (source of truth for prices).
-
-    Returns the records as Airtable returns them (each is {"id", "fields", ...}).
-    Empty list if Airtable is disabled or fails.
-    """
+    """Read the Catalogue & Tarifs table (read-only). Empty list on failure."""
     if not _enabled():
         return []
     url = _table_url(config.AIRTABLE_TABLE_CATALOGUE)
