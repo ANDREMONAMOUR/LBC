@@ -1,15 +1,19 @@
 """Shared MongoDB client/db instance for the Le Bon Clic backend."""
+import certifi
 from motor.motor_asyncio import AsyncIOMotorClient
 
 import config
 
-mongo_client = AsyncIOMotorClient(
-    config.MONGO_URL,
-    serverSelectionTimeoutMS=5000,
-    connectTimeoutMS=5000,
-    socketTimeoutMS=5000,
-    retryWrites=True,
-)
+_mongo_options = {
+    "serverSelectionTimeoutMS": 10000,
+    "connectTimeoutMS": 10000,
+    "socketTimeoutMS": 10000,
+    "retryWrites": True,
+    "tls": True,
+    "tlsCAFile": certifi.where(),
+}
+
+mongo_client = AsyncIOMotorClient(config.MONGO_URL, **_mongo_options)
 db = mongo_client[config.DB_NAME]
 
 

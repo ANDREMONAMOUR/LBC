@@ -178,20 +178,26 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    await db.otps.create_index("expires_at", expireAfterSeconds=3600)
-    await db.otps.create_index([("phone", 1), ("created_at", -1)])
-    await db.users.create_index("phone", unique=True)
-    await db.users.create_index("id", unique=True)
-    await db.bookings.create_index([("user_id", 1), ("created_at", -1)])
-    await db.bookings.create_index("id", unique=True)
-    await db.invoices.create_index([("user_id", 1), ("date", -1)])
-    await db.invoices.create_index("id", unique=True)
-    await db.payment_transactions.create_index("session_id", unique=True)
-    await db.payment_transactions.create_index([("user_id", 1), ("created_at", -1)])
-    await db.contact_messages.create_index([("created_at", -1)])
+    log.info("Starting up Le Bon Clic backend...")
+    try:
+        await db.otps.create_index("expires_at", expireAfterSeconds=3600)
+        await db.otps.create_index([("phone", 1), ("created_at", -1)])
+        await db.users.create_index("phone", unique=True)
+        await db.users.create_index("id", unique=True)
+        await db.bookings.create_index([("user_id", 1), ("created_at", -1)])
+        await db.bookings.create_index("id", unique=True)
+        await db.invoices.create_index([("user_id", 1), ("date", -1)])
+        await db.invoices.create_index("id", unique=True)
+        await db.payment_transactions.create_index("session_id", unique=True)
+        await db.payment_transactions.create_index([("user_id", 1), ("created_at", -1)])
+        await db.contact_messages.create_index([("created_at", -1)])
+        log.info("MongoDB indexes created successfully")
+    except Exception as exc:
+        log.error("Failed to create MongoDB indexes: %s", exc, exc_info=True)
+        raise RuntimeError(f"MongoDB connection failed at startup: {exc}") from exc
     seed_admin_if_needed()
     start_scheduler(db)
-    log.info("Backend started")
+    log.info("Backend started successfully")
 
 
 @app.on_event("shutdown")
