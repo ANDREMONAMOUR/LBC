@@ -38,6 +38,7 @@
     "cmdk": "^1.1.1",
     "cra-template": "1.2.0",
     "date-fns": "^3.6.0",
+    "dotenv": "^16.4.5",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.507.0",
@@ -61,7 +62,8 @@
     "build": "craco build",
     "test": "craco test",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d build"
+    "deploy": "gh-pages -d build",
+    "eject": "react-scripts eject"
   },
   "browserslist": {
     "production": [
