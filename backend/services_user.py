@@ -26,7 +26,7 @@ async def seed_demo_invoices(user_id: str, user_phone: str):
     today = datetime.now(timezone.utc).date()
     samples = [
         {
-            "label": "Dépannage Ordinateur",
+            "label": "Dépannage Ordinateur",
             "date": (today - timedelta(days=58)).isoformat(),
             "hours": 1.5,
             "base_total": 120.0,
